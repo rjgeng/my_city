@@ -6,3 +6,6 @@
 !.beads/metadata.json
 hooks/
 .runtime/
+
+# Nested rig (has its own git history)
+hello-world/

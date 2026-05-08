@@ -19,6 +19,12 @@ source = ".gc/system/packs/gastown"
 agent = "polecat"
 provider = "claude"
 
+[[rigs]]
+name = "hello-world"
+[rigs.imports]
+[rigs.imports.gastown]
+source = ".gc/system/packs/gastown"
+
 [daemon]
 patrol_interval = "30s"
 max_restarts = 5

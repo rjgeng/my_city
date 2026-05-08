@@ -1,0 +1,26 @@
+[workspace]
+provider = "codex"
+global_fragments = ["command-glossary", "operational-awareness"]
+
+[[rigs]]
+name = "co_store"
+[rigs.imports]
+[rigs.imports.gastown]
+source = ".gc/system/packs/gastown"
+
+[[rigs]]
+name = "co_shipping"
+prefix = "ship"
+[rigs.imports]
+[rigs.imports.gastown]
+source = ".gc/system/packs/gastown"
+
+[[rigs.patches]]
+agent = "polecat"
+provider = "claude"
+
+[daemon]
+patrol_interval = "30s"
+max_restarts = 5
+restart_window = "1h"
+shutdown_timeout = "5s"

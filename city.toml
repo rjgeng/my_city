@@ -1,5 +1,5 @@
 [workspace]
-provider = "codex"
+provider = "claude"
 global_fragments = ["command-glossary", "operational-awareness"]
 
 [[rigs]]
@@ -8,16 +8,16 @@ name = "co_store"
 [rigs.imports.gastown]
 source = ".gc/system/packs/gastown"
 
+[[rigs.patches]]
+agent = "polecat"
+provider = "codex"
+
 [[rigs]]
 name = "co_shipping"
 prefix = "ship"
 [rigs.imports]
 [rigs.imports.gastown]
 source = ".gc/system/packs/gastown"
-
-[[rigs.patches]]
-agent = "polecat"
-provider = "claude"
 
 [[rigs]]
 name = "hello-world"

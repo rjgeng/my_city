@@ -66,7 +66,7 @@ bd version
 # bd version 1.0.3 (Homebrew)
 
 gc version
-# 1.0.0
+# 1.1.0
 
 codex --version
 # codex-cli 0.128.0
@@ -129,17 +129,14 @@ git init
 
 # 6. Initialize Beads Properly (Critical)
 
-This became the main debugging issue.
+For a brand-new rig (no `.beads/` yet), the right command is just `bd init --prefix <p>`. Don't pre-empt it with `rm -rf .beads` — there's nothing to remove, and the habit teaches you to reach for the destructive option first.
 
-Do NOT rely on inherited broken .beads stores.
+## Standard process (fresh rig)
 
-Correct process:
-
-## co\_store
+### co\_store
 
 ```bash
 cd ~/co_store
-rm -rf .beads
 bd init --prefix cs
 ```
 
@@ -157,11 +154,10 @@ bd create "Test co_store bead"
 bd list
 ```
 
-## co\_shipping
+### co\_shipping
 
 ```bash
 cd ~/co_shipping
-rm -rf .beads
 bd init --prefix ship
 ```
 
@@ -172,18 +168,33 @@ bd create "Test co_shipping bead"
 bd list
 ```
 
+## Recovery (existing `.beads/` is broken)
+
+If a rig already has a `.beads/` and it's corrupted or otherwise broken, follow bd's own guidance — back up first, then re-init in place. `bd init` will refuse to overwrite an existing store and tell you exactly what to do:
+
+```bash
+cd ~/<rig>
+bd export > backup.jsonl   # back up first
+bd init --force --prefix <p>   # re-init in place
+bd import < backup.jsonl   # restore beads if you want them back
+```
+
+`rm -rf .beads && bd init --prefix <p>` is the **last-resort** form — use it only when `bd export` itself fails (database file is unreadable, lockfile is wedged, etc.). It throws away history irrecoverably; prefer the export → `--force` path above.
+
 ---
 
 # 7. Gas City-Compatible Beads Config
 
-Critical discovery:
+The canonical key is **`issue_prefix`** (snake_case). That's the one bd reads:
 
-Gas City required BOTH keys:
-
-```yaml
-issue_prefix:
-issue-prefix:
+```bash
+$ bd config get issue_prefix
+cs
+$ bd config get issue-prefix
+(not set)
 ```
+
+Earlier guidance in this manual recommended writing both `issue_prefix` and `issue-prefix` side by side. That was a workaround for a transient bd 1.0.3 behavior we hit during initial setup; it isn't a Gas City requirement. The dash form is unread by `bd config` and can be safely omitted from new rigs (and removed from existing ones during cleanup).
 
 Working config example:
 
@@ -191,33 +202,25 @@ Working config example:
 
 ```yaml
 issue_prefix: cs
-issue-prefix: cs
 dolt.auto-start: false
 gc.endpoint_origin: inherited_city
 gc.endpoint_status: verified
+types.custom: molecule,convoy,message,event,gate,merge-request,agent,role,rig,session,spec,convergence
 ```
 
 ## \~/co\_shipping/.beads/config.yaml
 
 ```yaml
 issue_prefix: ship
-issue-prefix: ship
 dolt.auto-start: false
 gc.endpoint_origin: inherited_city
 gc.endpoint_status: verified
+types.custom: molecule,convoy,message,event,gate,merge-request,agent,role,rig,session,spec,convergence
 ```
 
-Without both keys:
+> Note: `types.custom` lists Gas City's twelve custom bead types (convoy, message, session, molecule, etc.). It's installed into each rig by `gc rig add` / `gc doctor --fix`; you don't author it by hand. If `bd create` reports `invalid issue type: convoy` or similar, the `types.custom` line is missing — run `gc doctor --fix --verbose` to repair it (see §11).
 
-```text
-bd create
-```
-
-failed with:
-
-```text
-issue_prefix config is missing
-```
+If `bd create` ever reports `issue_prefix config is missing`, the rig's `.beads/config.yaml` is missing the `issue_prefix` line entirely — set it (`bd config set issue_prefix <p>`) rather than re-adding the dash form.
 
 ---
 
@@ -350,6 +353,12 @@ Controller: supervisor-managed
 
 # 13. Successful Final Dispatch
 
+Two terms appear here for the first time — define them before reading the example.
+
+**`gc sling`** — Routes a unit of work to a session config or agent. The first argument is the target (an agent qualified name like `<rig>/<agent>`); the second is one of: an existing bead ID, a formula name (with `--formula`), or arbitrary task text (which `gc sling` auto-files as a task bead before routing). Source: `gc sling --help`.
+
+**Auto-convoy** — When `gc sling` files a new bead, by default it also creates a `convoy`-typed bead and links the work bead to it as a parent-child relationship. A convoy is a container for related work; when all its child beads close, the convoy auto-closes too. This is the same convoy mechanism documented in Tutorial 06 (`study/gascity-src/docs/tutorials/06-beads.md` §"Convoys"). Pass `--no-convoy` to skip the wrapper. Pass `--owned` to mark the convoy as owned (it skips auto-close, and you land it explicitly with `gc convoy land <id>`).
+
 ## Claude rig
 
 ```bash
@@ -366,6 +375,12 @@ Auto-convoy ship-4on
 Slung ship-zs4 → co_shipping/gastown.polecat
 ```
 
+Reading the output:
+
+- `Created ship-zs4` — `gc sling` filed a new task bead in `co_shipping`'s store with prefix `ship`
+- `Auto-convoy ship-4on` — and wrapped it in convoy `ship-4on` (the convoy is itself a bead, type `convoy`, and `ship-zs4`'s `ParentID` points at it)
+- `Slung ship-zs4 → co_shipping/gastown.polecat` — set `metadata.gc.routed_to = co_shipping/gastown.polecat` on the bead so the polecat pool reconciler picks it up
+
 And agents finally started:
 
 ```text
@@ -378,6 +393,8 @@ Including:
 gastown.mayor running
 co_shipping/gastown.furiosa running
 ```
+
+`9/20` is running / max-possible — the max counts every on-demand polecat slot across rigs, so single-digit running is normal at rest (deacon's "Idle Town Principle").
 
 ---
 

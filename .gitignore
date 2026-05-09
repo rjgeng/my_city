@@ -9,3 +9,6 @@ hooks/
 
 # Nested rig (has its own git history)
 hello-world/
+
+# macOS
+.DS_Store

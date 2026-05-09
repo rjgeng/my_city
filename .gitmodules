@@ -1,0 +1,3 @@
+[submodule "study/gascity-src"]
+	path = study/gascity-src
+	url = https://github.com/gastownhall/gascity.git

@@ -46,13 +46,16 @@ Dolt < Beads < Gastown < Gas City
 
 # 2. Working Final Topology
 
+Current (since 2026-05-09 inversion — see §9):
+
 ```text
 ~/my-city
   ├── co_store
-  │     └── Codex provider
+  │     └── polecat: Codex (scoped patch)
+  │     └── all other agents: Claude (workspace default)
   │
   └── co_shipping
-        └── Claude Code provider override
+        └── all agents: Claude (workspace default)
 ```
 
 ---
@@ -241,38 +244,60 @@ gc rig add ~/co_shipping --adopt --prefix ship
 
 ---
 
-# 9. Claude Override for One Rig
+# 9. Per-Rig Provider Override
 
-Edit:
+The workspace `provider` in `city.toml` is the city's default. To run one named agent in one rig on a different provider, add a `[[rigs.patches]]` block inside that rig.
 
-```bash
-~/my-city/city.toml
-```
-
-Final working config:
+Current working config (inverted on 2026-05-09 — see "Topology history" at end of section):
 
 ```toml
 [workspace]
-provider = "codex"
+provider = "claude"
 
 [[rigs]]
 name = "co_store"
+[[rigs.patches]]
+agent = "polecat"
+provider = "codex"
 
 [[rigs]]
 name = "co_shipping"
 prefix = "ship"
 
-[[rigs.patches]]
-agent = "polecat"
-provider = "claude"
+[[rigs]]
+name = "hello-world"
 ```
 
-Meaning:
+Resolved provider per agent:
 
 ```text
-co_store      → Codex
-co_shipping   → Claude Code
+co_store/polecat    → codex     (scoped patch)
+co_store/refinery   → claude    (inherits workspace)
+co_store/witness    → claude    (inherits workspace)
+co_shipping/*       → claude    (inherits workspace, no patch)
+hello-world/*       → claude    (inherits workspace, no patch)
+mayor, deacon, boot → claude    (city-scope, inherit workspace)
 ```
+
+## Patch scope (important)
+
+`[[rigs.patches]]` overrides **only the agent named in `agent = "..."`** — nothing else. The patch above with `agent = "polecat"` overrides the polecat in `co_store`. It does NOT cascade to that rig's refinery, witness, or any other agent. Every unpatched agent — refinery (merges), witness (status), mayor/deacon/boot (city-scope coordinators), dog (handoff) — inherits the workspace `provider`.
+
+This means: **the workspace provider is the city's reliability floor.** If the workspace provider rate-limits or goes down:
+
+- The merge pipeline goes down on every rig (refinery is workspace-default unless individually patched).
+- The supervisor agents (mayor, deacon, boot) go down — coordination stalls.
+- Every unpatched polecat goes down too.
+
+A scoped polecat patch onto a different provider does NOT shield the rig from a workspace-provider outage. The rig's refinery still inherits the workspace default and the merge step still fails when the workspace provider does. We learned this the hard way on day 3 (see "Topology history" below).
+
+Practical consequence: choose the workspace provider for **headroom and reliability**, not just preference. Use the per-rig patch for opt-in experiments — that's what we use the codex patch for now (running an A/B between codex and the rest of the city on claude).
+
+## Topology history
+
+Original setup (2026-05-07): workspace `codex`, scoped patch `co_shipping/polecat → claude`. The intent was to use codex (ChatGPT Plus) as the workspace floor and A/B claude on one rig's implementer.
+
+Inverted on 2026-05-09 after a codex usage limit on the ChatGPT Plus tier stalled the **entire** merge pipeline — including the merge for `co_shipping/ship-6a2kf`, even though that rig's *polecat* was correctly running on claude. The refinery (co_shipping/refinery) was still on codex via workspace inheritance and couldn't process the merge until codex unblocked. Workspace was switched to claude (Max Pro headroom is materially higher), and the patch was moved to `co_store/polecat → codex` to preserve the codex/claude A/B intent with the more reliable provider as the workspace floor.
 
 ---
 
@@ -324,30 +349,55 @@ issue types.
 
 # 12. Controller Ownership Recovery
 
-Important discovery:
+The supervisor or controller can wedge in two distinct ways:
 
-Gas City can get stuck during:
+1. **Adoption hang** — `gc start` prints `Adopting sessions...` and never returns.
+2. **Reload refused** — `gc reload` returns `Reload request could not be accepted because the controller is busy`. This happens when the controller is locked on a stuck session (e.g. a polecat retrying against a rate-limited provider, or any session that can't make forward progress).
 
-```text
-Adopting sessions...
-```
+There's an escalation ladder. Use the lightest tool that works.
 
-Correct recovery:
+## Level 1 — `gc reload`
+
+Picks up config changes (e.g. an edit to `city.toml`) without disturbing running sessions. Lightest disruption — sessions and conversational state survive.
 
 ```bash
 cd ~/my-city
+gc reload
+```
 
+If this prints `controller is busy`, the controller is wedged on something — escalate to level 2. Don't retry `gc reload` in a loop; the controller won't unstick on its own.
+
+## Level 2 — `gc restart`
+
+Stops all agent sessions and starts them again under the same controller. Drops the supervisor association — `gc status` afterwards will show `Controller: standalone-managed` rather than `supervisor-managed`. Beads, worktrees, and your code on disk all survive (gastown is bead-tracked, not session-tracked).
+
+```bash
+gc restart
+```
+
+What it kills: every active tmux session — mayor, deacon, boot, witnesses, refineries, dog, any in-flight polecats. Open beads will be re-discovered by the new sessions on startup and picked up where they left off.
+
+If `gc status` now shows `standalone-managed`, escalate to level 3 to hand ownership back to the supervisor.
+
+## Level 3 — `gc stop && gc start`
+
+Full ownership cycle. Unregisters the city, then re-registers it and re-attaches to the machine-wide supervisor.
+
+```bash
+cd ~/my-city
 gc stop /Users/rfvitis/my-city
 gc start /Users/rfvitis/my-city
 ```
 
-Eventually the supervisor reclaimed ownership.
+`gc stop` may itself fail with `reconcile queue is busy; try again shortly` — that's tolerable if `gc start` then succeeds, which usually happens because `gc stop` restores the registration on failure (so the city is in a consistent state for `gc start` to take it).
 
-Desired state:
+## Desired end state
 
 ```text
 Controller: supervisor-managed
 ```
+
+If `gc status` reports anything else after a full level-3 cycle, escalate to deacon (mail) or check `gc doctor --fix --verbose` (§11) — the controller may be in a state that needs surgical repair rather than a restart.
 
 ---
 
@@ -533,25 +583,11 @@ The real issues were:
 
 NOT the sibling-rig architecture itself.
 
-Provider topology was also correct from the beginning:
+The scoped multi-provider pattern has been a legitimate configuration shape from the beginning — workspace default plus per-rig `[[rigs.patches]]` for one-rig experiments.
 
-```toml
-[workspace]
-provider = "codex"
+The original arrangement (2026-05-07) was workspace `codex` with `co_shipping/polecat → claude` patched. On 2026-05-09 it was inverted to workspace `claude` with `co_store/polecat → codex` patched, after a codex usage limit revealed that `[[rigs.patches]]` only covers the named agent — refinery and other unpatched agents still inherit the workspace default, so a workspace-provider outage takes down the merge pipeline city-wide regardless of any polecat patches. See §9 for the current `city.toml` and the architectural rationale.
 
-[[rigs.patches]]
-agent = "polecat"
-provider = "claude"
-```
-
-Meaning:
-
-```text
-Workspace default → Codex
-Specific experiment → Claude for co_shipping polecat only
-```
-
-This is a legitimate scoped multi-provider pattern, not a misconfiguration.
+Either direction of the pattern is correct. The choice of which provider sits at the workspace floor is governed by reliability and rate-limit headroom, not preference.
 
 # 16. Final Understanding
 

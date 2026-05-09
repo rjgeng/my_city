@@ -2,6 +2,7 @@
 .gc/
 .beads/*
 .codex/*
+.claude/
 !.beads/config.yaml
 !.beads/metadata.json
 hooks/

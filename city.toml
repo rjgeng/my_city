@@ -25,6 +25,13 @@ name = "hello-world"
 [rigs.imports.gastown]
 source = ".gc/system/packs/gastown"
 
+[[rigs]]
+name = "co_auth"
+prefix = "auth"
+[rigs.imports]
+[rigs.imports.gastown]
+source = ".gc/system/packs/gastown"
+
 [daemon]
 patrol_interval = "30s"
 max_restarts = 5

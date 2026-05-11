@@ -781,3 +781,140 @@ Try this first whenever anything misbehaves. Most config drift heals here.
 | Remove a rig | edit `city.toml` (and `.gc/site.toml` if needed), then `gc doctor` |
 
 Keep this page bookmarked.
+
+---
+
+# 19. Polecat → Refinery Merge Workflow
+
+The implicit handoff between polecat (work-producer) and refinery (work-merger) is the single most surprising thing in gas-town's daily operation. Misunderstanding it strands beads in `OPEN` state with their work already done.
+
+## What polecat actually does
+
+A polecat session in a rig:
+
+1. Claims a ready non-gate bead from its rig's queue.
+2. Does the work — checks out a branch, writes code, commits.
+3. Writes NOTES on the bead documenting what shipped.
+4. **Drains** — exits cleanly. Does *not* close the bead.
+
+Polecat **never closes its own beads.** Earlier mental models where polecat marks work "done" were wrong.
+
+## What refinery actually does
+
+A refinery session in the same rig:
+
+1. Patrols (slow cadence) or wakes on explicit nudge.
+2. Discovers branches ahead of `main` with closure-ready metadata.
+3. Fast-forwards (or merge-commits for non-FF), records `merged_commit` on the bead.
+4. Closes the bead with full merge metadata.
+
+So refinery does **both the merge and the close**. The polecat → refinery boundary is a clean producer/consumer split, but it's not visible in any individual bead — it's inferred from the branch state ahead of `main`.
+
+## The "nudge refinery" pattern
+
+Refinery's natural patrol cadence is slow (often >15 min between sweeps). When you've drained a polecat and want immediate merge:
+
+```bash
+gc session nudge co_auth/gastown.refinery "<bead-id> complete on <branch> — please merge"
+```
+
+This is the reliable trigger after polecat drains. Without it, completed work can sit unmerged for an entire patrol cycle.
+
+## Mayor's `PAUSE for Gn` spec anti-pattern
+
+If mayor writes a bead spec that says **"Then STOP. Gate Gn reviews this work…"**, polecat reads "STOP" literally and skips its own closure step. The branch lands, but the bead never enters refinery's discovery set. Work strands.
+
+**Don't write:** `"Implement X. Then STOP and wait for auth-G2 review."`
+
+**Write instead:** `"Implement X. Close the bead normally when work is committed. Downstream beads remain blocked until auth-G2 is closed by a reviewer."`
+
+Polecat is doing exactly what mayor told it to. The fix is in mayor's prompting, not in polecat behavior.
+
+---
+
+# 20. Cross-Rig Convoy Gap
+
+Convoys filed in HQ (`mc-*` prefix) cannot directly parent beads from different rigs (e.g., `auth-1` and `cs-3` can't both be children of `mc-X`). `gc convoy add` fails the parent-edge creation between HQ and a rig-prefixed bead.
+
+**Workaround** (codified in memory `project_cross_rig_convoy.md`): use a label-based soft-link. Tag each rig-local child bead with `convoy:mc-XXX`:
+
+```bash
+gc bd label add auth-1 convoy:mc-wjos2g
+gc bd label add cs-3   convoy:mc-wjos2g
+```
+
+The convoy bead lives in HQ; the children stay in their respective rigs. `gc convoy land` works fine on the HQ convoy despite the parent gap — the land operation doesn't require parent edges, only the convoy bead's own readiness.
+
+Use the label-based soft-link pattern until first-class cross-rig convoys ship.
+
+---
+
+# 21. Local Rig Development After a Cascade
+
+When you `git clone` a rig — or `git reset --hard origin/main` to recover from a long automated session — two things commonly go wrong before the demo will run.
+
+## Local-repo vs origin desync
+
+After polecat × refinery cascades, the local rig's `main` can be ahead of `origin/main`, behind, or diverged. The local repo is **not** trustworthy by default. Before running the demo:
+
+```bash
+cd ~/co_auth
+git status
+git log --oneline main origin/main | head -10
+# if diverged or ahead, decide:
+git reset --hard origin/main   # discard local-only commits
+# or
+git push                       # publish them
+```
+
+## Bootstrap after clone
+
+Frameworks like Next.js + Prisma generate gitignored artifacts at install time. After a fresh clone (or hard-reset), those artifacts are absent and the app won't boot. Re-create them:
+
+```bash
+cd ~/co_auth
+npm install
+npx prisma generate            # regenerate the gitignored client
+npx prisma migrate deploy      # apply migrations to a fresh dev.db
+npm run dev
+```
+
+Polecats writing a demo's README should bake these steps into the bootstrap section. The README is **the** contract with a future cloner.
+
+---
+
+# 22. Debugging Pack Scripts and Cross-Pack Conventions
+
+## Silent failure via `2>/dev/null`
+
+Pack scripts swallow stderr to keep supervisor logs clean. When something legitimately breaks, the real error vanishes. The Day-5 JSONL triage spent its first investigation steps chasing a misleading symptom (`exported 0/3, failed: cs hq ship`) because the actual error (`fatal: 'origin' does not appear to be a git repository`) was swallowed by `2>/dev/null` on the offending `git push`.
+
+**Diagnostic technique:** when a pack script reports a vague status (`push: failed`, `exported 0/N`), reproduce the underlying operation manually outside the script. Re-run the same `git push` or `dolt sql` directly with stderr visible:
+
+```bash
+# Instead of trusting "push: failed" from the script:
+cd <archive-path>
+git push origin main           # see the actual error
+```
+
+This single move cracked both Day-5 root causes within minutes once applied. If you can't make progress reading a script, run its core operation by hand.
+
+## Pack-script scope ≠ rig scope
+
+A pack script's output may contain rig-name-shaped tokens (`cs`, `hq`, `ship`) without the script actually being rig-scoped. `mol-dog-jsonl` iterates **dolt databases** (city-level construct), not rigs. The names happen to match because each rig owns one dolt database with the rig prefix.
+
+**When debugging a script with a `failed: <list>` output**, check whether the list is rigs (from `gc.config.rigs`) or dolt databases (from `SHOW DATABASES`). They share names but have different lifecycles. The framing influences hypothesis ranking — Day-5's source bead `mc-vj3hjk` framed the issue as rig-local when the real cause was city-level.
+
+## Cross-pack config name conventions
+
+Different packs in `.gc/system/packs/` sometimes hardcode different filenames for shared runtime state. Day-5 example (now tracked as bead `mc-ma23a9`): `dolt-state.json` (used by `maintenance` and `dolt` packs) vs `dolt-provider-state.json` (canonical, written by `bd` pack).
+
+**Cross-pack contract principle:** when a script reads runtime state owned by another pack, query the canonical path via a designated resolver (e.g., `gc dolt-state runtime-layout`) rather than hardcoding the filename. Hardcoded names drift; resolvers don't.
+
+```bash
+# Hardcoded — brittle:
+STATE_FILE="$CITY/.gc/runtime/packs/dolt/dolt-state.json"
+
+# Resolver-based — survives renames:
+STATE_FILE=$(gc dolt-state runtime-layout | awk '/GC_DOLT_STATE_FILE/ {print $2}')
+```

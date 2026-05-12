@@ -226,41 +226,59 @@ For pure mechanism testing, the light-mayor path is cleaner — one variable at 
 
 ## 10. Execution log
 
-(filled in as work happens)
-
 ### Pre-flight outcomes
 
-- Hello-world refinery alias:
-- Working tree state pre-run:
-- `git remote -v` for hello-world:
+- **Hello-world refinery alias**: `hello-world/gastown.refinery` (confirmed via `gc status` after start). Refinery is `reserved-unmaterialized (on_demand)` — matches Day-4 pattern. Pool agents: `furiosa`, `nux`, `slit`, `rictus`, `capable` (5 slots, scaled 0-5).
+- **Working tree state**: `hello.py` + two untracked dirs (`.claude/`, `.codex/`). No tracked changes.
+- **`git remote -v` for hello-world**: pre-flight discovered the bare repo at `/Users/rfvitis/hello-world-origin.git` was already set up from an earlier session; reinit was a no-op. The `mc-vj3hjk`-shape risk in plan §6 was already mitigated.
+- **Pre-existing system state at start**: Day-7's local pack-script patches were **reverted by `gc start`** (pack-reinstall step pulled fresh upstream copies; expected per Day-7 plan §6). Dolt got migrated from port 50213 to 49181 by the controller startup. **Neither `dolt-state.json` nor `dolt-provider-state.json` was ever written** during the run — controller's `publishManagedDoltRuntimeState` never completed (consistent with mc-uhvbb9's hypothesis about reconciler-induced API starvation).
 
 ### Timings
 
 | Event | Wall-clock time | Notes |
 |---|---|---|
-| T0 — bead created | | |
-| T1 — polecat claims | | |
-| T2 — polecat assigns to refinery | | |
-| T3 — polecat issues nudge | | (session log check, not events.jsonl) |
-| T4 — refinery wakes/picks up | | |
-| T5 — refinery merges (sets merged_commit) | | |
-| T6 — refinery closes | | |
+| `gc start` issued | 07:38:35 | Controller PID 59365 |
+| T0 — bead created (no metadata) | 07:44:14 | `hw-65hvt`, P3 task, the corrected §19 description |
+| ⌛ stranded — polecat never materialized | 07:44:14 → 07:56:09 (~12 min) | **The `gc.routed_to` field was unset.** Polled 217s with no progress. |
+| T-update — added `gc.routed_to=hello-world/gastown.polecat` | 07:56:09 | The unblocking fix |
+| T1 — polecat materialized (`furiosa` running) | ~07:57:18 | +69s after metadata update |
+| T2-T4 — polecat work / assign / nudge / refinery wake | 07:57:18 → 08:05:29 (within ~8 min) | All packed into one observation cycle; individual transitions not separable from this run |
+| T5/T6 — bead closed with merged_sha 8c2983dc | ~08:05:29 | `merge_result=merged`, `merged_target=main`. Commit `8c2983d docs: add Day-9 validation NOTES entry` on hello-world `main`. |
+| `gc stop` | 08:17:39 | Clean shutdown |
 
-### Which failure mode (if any)
+**End-to-end after metadata fix: ~9 min 20s** (T-update → T-close).
+**Compared to Day-4 auth-wg0** stranded 79 min: **~8.5× improvement.**
 
-- F1 / F2 / F3 / F4 / F5:
-- Evidence:
+### Which failure mode
+
+- **F5 — Hard criteria 1-6 all pass.** Bead created → polecat claimed → branch pushed → metadata set → bead assigned to refinery → refinery merged → bead closed with merge metadata. End-to-end timing is bounded and measurable.
+- **One caveat:** the F5 path was reached only AFTER a manual `gc.routed_to` metadata patch. Filing the bead directly (light-mayor path) did NOT route correctly. That's a plan blind spot worth fixing — see Surprises.
+- **What I cannot tell from this single run:** whether polecat actually executed the explicit `gc session nudge` step from the description, or whether refinery happened to pick up via its watch this time. Both paths land at the same observed outcome (bead closed). Distinguishing them needs either polecat's session transcript or running a paired control with the nudge step removed.
 
 ### Soft observations
 
-- Reconciler cycle duration during run (`gc trace show --type cycle_result --since 1h`):
-- `slow_storage_degraded` warnings count:
-- Any bead.updated events that looked stranded:
+- **Reconciler cycle duration during run**: 65s, 140s, 230s for the three cycles I sampled. **Worse than Day-6 baseline of p50=27s** (today's run was 2-8× slower). `mc-f7u8fz` is alive and well; the controller was even more I/O-constrained today than during the Day-6 measurement window.
+- **State files**: `dolt-state.json` and `dolt-provider-state.json` were both **absent throughout the run**. The controller's publish step never completed. This is a fresh observation: under heavy reconciler load, state-file publication is a casualty. Could explain why Day-9's polecat-materialization latency was 69s rather than the few-seconds I expected — pool scaler is starving on the same I/O budget as everything else.
+- **`slow_storage_degraded` warnings**: not actively counted this run; the gc supervisor logs file would have them. Skipped for time.
 
 ### Surprises
 
-(things this plan got wrong, or new gaps surfaced)
+1. **`gc.routed_to` is a load-bearing field for pool scaling, not just for in-pool routing.** Day-4's S6 said "polecat claims regardless of routed_to" — but that's about WHICH polecat claims after the pool scales; the field's PRESENCE is what gates pool scaling itself. The plan assumed light-mayor path = "file bead directly, polecat claims" — that's incomplete. Without mayor (or a manual metadata patch), pool scaler doesn't see the bead as eligible.
+2. **The refinery write-output fields are `merged_sha` / `merged_target` / `merge_result`** — NOT `merged_commit` / `merged_at` / `refinery_pushed_at` as Day-4 narrative used. Day-8 §19 correction is technically still wrong on field names. Either the formula was updated between Day-4 and now, OR Day-4 saw a manual close-with-merge-metadata path that used non-canonical fields. Worth a Step-1.5-style check.
+3. **Controller startup wipes local pack-script patches.** Day-7 §6 anticipated this; today it actually happened during `gc start`. The upstream branch (`rjgeng/fix/dolt-pack-script-state-fallback`) is the only durable form; local edits in `.gc/system/packs/` are validation-grade only.
+4. **State files were never written.** A new mc-uhvbb9-shaped observation: even after a clean `gc start`, neither `dolt-state.json` nor `dolt-provider-state.json` got written during the ~30 minutes of operation. Without them, `bd dolt status` reports "not running" (false — dolt is on 49181), and any script reading the state files falls back to legacy defaults. The reconciler is too I/O-saturated to keep its own publication invariants up to date.
+5. **Refinery's "watch" question stays open.** Did polecat issue the nudge per the description? Did the watch fire on the assignment event? Single-run result can't separate them. A planned future run with the nudge step deliberately omitted (or polecat session transcript captured) would isolate.
 
 ### Anything to promote to v2 manual
 
-(workflow insights worth durable documentation — especially refinements to §19's "How to write a polecat-friendly bead spec")
+1. **§19 "How to file a polecat-friendly bead" must list `gc.routed_to` as a REQUIRED metadata field for the bead to be claimable.** If filing directly via `bd create` (without mayor), set it explicitly. Mayor sets it for you when it files; bypassing mayor means setting it yourself. Example:
+
+       bd create "<task>" --set-metadata gc.routed_to=<rig>/gastown.polecat
+
+   Without this, the bead lives in the queue but the pool scaler never materializes a polecat — the bead is invisible to claim.
+
+2. **§19's refinery write-output field list needs updating to: `merged_sha`, `merged_target`, `merge_result`, plus the `branch`/`target`/`work_dir` echo and any merge-strategy-specific fields.** The Day-8 correction still listed Day-4-era names; today's run shows the current shape.
+
+3. **§22 "premise falsification" pattern triggers again.** Today caught two new sub-inversions: (a) Day-4 S6's "regardless of routed_to" claim doesn't apply to pool scaling, (b) the refinery field names. Three days running, the pattern keeps finding documentation drift. Worth a stronger framing in §22 — maybe a checklist of "things to grep before trusting a deferred writeup."
+
+4. **A new diagnostic note worth a paragraph somewhere**: under reconciler I/O saturation (mc-f7u8fz), the controller's state-file publication invariants are not maintained. `gc trace cycle` and `gc events` keep working (they're served by the API), but `bd dolt status`, scripts that read `.gc/runtime/packs/dolt/dolt-state.json`, and possibly other state-file readers get stale or empty data. Treat state files as "best-effort, may be stale" rather than "single source of truth."

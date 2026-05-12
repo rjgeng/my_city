@@ -794,8 +794,11 @@ A polecat session in a rig:
 
 1. Claims a ready non-gate bead from its rig's queue.
 2. Does the work — checks out a branch, writes code, commits.
-3. Writes NOTES on the bead documenting what shipped.
-4. **Drains** — exits cleanly. Does *not* close the bead.
+3. Pushes the branch.
+4. Writes NOTES on the bead documenting what shipped.
+5. Sets metadata on the bead: `branch`, `target` (defaults to `main`), `work_dir`, `gc.routed_to`. Optionally `merge_strategy` (`direct` default, or `mr`/`pr`).
+6. **Assigns the bead to the rig's refinery** (e.g., `assignee=co_auth/gastown.refinery`).
+7. **Drains** — exits cleanly. Does *not* close the bead.
 
 Polecat **never closes its own beads.** Earlier mental models where polecat marks work "done" were wrong.
 
@@ -803,32 +806,40 @@ Polecat **never closes its own beads.** Earlier mental models where polecat mark
 
 A refinery session in the same rig:
 
-1. Patrols (slow cadence) or wakes on explicit nudge.
-2. Discovers branches ahead of `main` with closure-ready metadata.
-3. Fast-forwards (or merge-commits for non-FF), records `merged_commit` on the bead.
-4. Closes the bead with full merge metadata.
+1. Wakes on patrol (formula `mol-refinery-patrol`) or explicit nudge.
+2. Discovers work via `bd list --assignee=$GC_AGENT --status=open --exclude-type=epic --limit=1`, then verifies the matched bead has `metadata.branch`. **Discovery is purely bead-metadata-driven; the branch state on disk is not the discovery input — the bead's metadata is.**
+3. Rebases the branch onto `target`. If the rebase conflicts, returns the bead to the pool with rejection metadata and waits for a polecat to retry.
+4. Runs configured quality checks (build/lint/typecheck/test as set in `mol-refinery-patrol` vars).
+5. Fast-forwards (or merge-commits for non-FF), records `merged_commit` on the bead.
+6. Closes the bead with full merge metadata.
 
-So refinery does **both the merge and the close**. The polecat → refinery boundary is a clean producer/consumer split, but it's not visible in any individual bead — it's inferred from the branch state ahead of `main`.
+So refinery does **both the merge and the close**. The polecat → refinery boundary is a clean producer/consumer split mediated by the bead itself — the `assignee` field is the handoff signal.
+
+**`merged_commit` is a write-output, never a discovery input.** Discovery only looks at OPEN beads. Be skeptical of any narrative that says refinery "keys off `merged_commit`" — that's backwards. (Caught while diagnosing S5 on 2026-05-12 — see `study/notes/2026-05-12-s5-refinery-work-discovery.md`.)
 
 ## The "nudge refinery" pattern
 
-Refinery's natural patrol cadence is slow (often >15 min between sweeps). When you've drained a polecat and want immediate merge:
+Refinery's patrol formula uses `gc events --watch --type=bead.updated` with exponential backoff between checks. In principle, an assignment event should trigger a re-check within seconds. In practice (observed Day-4 in `co_auth`, captured in bead `mc-uhvbb9`) the watch can fail to react for over an hour even with thousands of intervening events, likely because the streaming city API is starved when the reconciler is under load (see `mc-f7u8fz`).
+
+**Treat the post-polecat nudge as a reliability requirement, not optional ceremony:**
 
 ```bash
-gc session nudge co_auth/gastown.refinery "<bead-id> complete on <branch> — please merge"
+gc session nudge co_auth/gastown.refinery "<bead-id> ready on <branch> — please merge"
 ```
 
-This is the reliable trigger after polecat drains. Without it, completed work can sit unmerged for an entire patrol cycle.
+This is the reliable trigger after polecat drains. Without it, completed work can sit unmerged indefinitely if the watch is in a degraded state.
 
 ## Mayor's `PAUSE for Gn` spec anti-pattern
 
-If mayor writes a bead spec that says **"Then STOP. Gate Gn reviews this work…"**, polecat reads "STOP" literally and skips its own closure step. The branch lands, but the bead never enters refinery's discovery set. Work strands.
+If mayor writes a bead spec that says **"Then STOP. Gate Gn reviews this work…"**, polecat reads "STOP" literally. **Be careful what "STOP" means in context** — observed behavior on Day-4 was that polecat completed the handoff fully (pushed branch, set metadata, assigned to refinery) but did NOT issue a nudge. Combined with the watch-reliability gap above, the bead can then sit indefinitely.
+
+The fix is in mayor's prompting, not in polecat behavior:
 
 **Don't write:** `"Implement X. Then STOP and wait for auth-G2 review."`
 
-**Write instead:** `"Implement X. Close the bead normally when work is committed. Downstream beads remain blocked until auth-G2 is closed by a reviewer."`
+**Write instead:** `"Implement X. Push the branch, set merge metadata, assign to refinery, and nudge refinery before draining. Then stop. Downstream beads remain blocked until auth-G2 is closed by a reviewer."`
 
-Polecat is doing exactly what mayor told it to. The fix is in mayor's prompting, not in polecat behavior.
+The explicit "nudge refinery" instruction makes the handoff complete regardless of watch reliability.
 
 ---
 
@@ -905,19 +916,50 @@ A pack script's output may contain rig-name-shaped tokens (`cs`, `hq`, `ship`) w
 
 **When debugging a script with a `failed: <list>` output**, check whether the list is rigs (from `gc.config.rigs`) or dolt databases (from `SHOW DATABASES`). They share names but have different lifecycles. The framing influences hypothesis ranking — Day-5's source bead `mc-vj3hjk` framed the issue as rig-local when the real cause was city-level.
 
-## Cross-pack config name conventions
+## The two-state-files architecture (and the secondary-fallback pattern)
 
-Different packs in `.gc/system/packs/` sometimes hardcode different filenames for shared runtime state. Day-5 example (now tracked as bead `mc-ma23a9`): `dolt-state.json` (used by `maintenance` and `dolt` packs) vs `dolt-provider-state.json` (canonical, written by `bd` pack).
+The dolt runtime has **two state files by design, not by accident**:
 
-**Cross-pack contract principle:** when a script reads runtime state owned by another pack, query the canonical path via a designated resolver (e.g., `gc dolt-state runtime-layout`) rather than hardcoding the filename. Hardcoded names drift; resolvers don't.
+| File | Writer | Role |
+|---|---|---|
+| `.gc/runtime/packs/dolt/dolt-state.json` | The GC controller (`publishManagedDoltRuntimeState`) | **Canonical managed-local authority** — `cmd/gc/beads_provider_lifecycle.go:864` literally says "The only managed-local authority is `.gc/runtime/packs/dolt/dolt-state.json`." |
+| `.gc/runtime/packs/dolt/dolt-provider-state.json` | The `bd` pack's backend-bridge (`gc-beads-bd.sh`) | What the bd pack writes when it starts dolt. The controller's `publishManagedDoltRuntimeState` reads provider-state + port-probe verification, then atomically writes the canonical `dolt-state.json`. |
+
+(Day-5's earlier "canonical name" framing for this section was the reverse of the truth — `dolt-state.json` is canonical, not legacy. Day-7's investigation of `mc-ma23a9` reversed it on the strength of upstream `grep` evidence; see `study/notes/2026-05-12-mc-ma23a9-dolt-state-filename-fix.md`.)
+
+When the controller invokes pack scripts, `providerLifecycleDoltPathEnv` (`lifecycle.go:1381`) injects `GC_DOLT_STATE_FILE=…/dolt-provider-state.json` into their environment. So scripts read provider-state in the controller-managed path. **When that env injection doesn't happen** (e.g., a maintenance order while the supervisor is stopped, or a fresh `bd dolt start` standalone), the script needs a fallback.
+
+**The fallback order for any script reading dolt state:**
 
 ```bash
-# Hardcoded — brittle:
-STATE_FILE="$CITY/.gc/runtime/packs/dolt/dolt-state.json"
-
-# Resolver-based — survives renames:
-STATE_FILE=$(gc dolt-state runtime-layout | awk '/GC_DOLT_STATE_FILE/ {print $2}')
+# Priority: GC_DOLT_STATE_FILE env > canonical > bd-bridge > legacy default
+if [ -n "${GC_DOLT_STATE_FILE:-}" ]; then
+    DOLT_STATE_FILE="$GC_DOLT_STATE_FILE"
+elif [ -f "$PACK_DIR/dolt-state.json" ]; then
+    DOLT_STATE_FILE="$PACK_DIR/dolt-state.json"
+elif [ -f "$PACK_DIR/dolt-provider-state.json" ]; then
+    DOLT_STATE_FILE="$PACK_DIR/dolt-provider-state.json"
+else
+    DOLT_STATE_FILE="$PACK_DIR/dolt-state.json"   # legacy fallback
+fi
 ```
+
+**Why not just call `gc dolt-state runtime-layout`?** Because that resolver returns nothing when the controller is stopped — its output depends on supervisor state. The secondary-fallback pattern works under all lifecycle states, including the standalone-bd case.
+
+This pattern was applied on Day-7 to `dolt-target.sh` and `runtime.sh` in both `.gc/system/packs/` (local, gitignored) and `study/gascity-src/examples/...` (upstream, on branch `rjgeng/fix/dolt-pack-script-state-fallback`).
+
+## Falsifying a deferred observation's premise before acting
+
+When you revisit a deferred observation from a prior day — a bead's prescribed fix, a notes file's diagnosis, a memory's claim — **don't trust it. Grep the upstream source for the exact terms the writeup uses, before acting on the prescription.**
+
+This was the central lesson of Day-7 and Day-8:
+
+- **Day-7 (`mc-ma23a9`)**: bead claimed `dolt-state.json` was legacy and `dolt-provider-state.json` was canonical. A 30-second `grep -rn "dolt-state.json" study/gascity-src/cmd/` returned 20+ hits in production Go code, including the file's own comment ("The only managed-local authority is `.gc/runtime/packs/dolt/dolt-state.json`"). The bead's premise was inverted. The originally-planned "rename hardcoded constant" fix would have broken the controller-managed path.
+- **Day-8 (S5)**: Day-4 writeup claimed refinery's discovery "keys off `merged_commit` metadata on closed beads." A 30-second `grep -rn "merged_commit" study/gascity-src/` returned **zero** hits in production code. `merged_commit` is a write-output, never a discovery input. The actual discovery predicate is `assignee=$GC_AGENT AND status=open AND type!=epic AND metadata.branch present`.
+
+**The pattern:** before any fix-or-investigate step that depends on a prior writeup's framing, run the cheapest possible falsification — `grep` upstream for the central nouns in the writeup. If they don't appear where the writeup says they do, the premise is wrong; redirect.
+
+This pairs with §22's "silent failure via `2>/dev/null`" principle: that one says "don't trust a script's masked output," this one says "don't trust your own past notes." The shape is the same — re-run the underlying evidence-gather, don't accept the summary.
 
 # 23. Reconciler Diagnostics via `gc trace`
 

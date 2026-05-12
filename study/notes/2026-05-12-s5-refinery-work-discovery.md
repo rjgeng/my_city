@@ -201,35 +201,48 @@ Skip, same shape as Day-6 and Day-7:
 
 ## 10. Execution log
 
-(filled in as work happens)
-
 ### Steps run
 
 | Step | Time | Finding |
 |---|---|---|
-| | | |
+| 1.5 — grep upstream for `merged_commit` (front-loaded per Day-7 lesson) | 2026-05-12 | **Zero hits** for `merged_commit\|MergedCommit\|merged-commit` across all of `cmd/`, `internal/`, `packs/`, `examples/` in `gascity-src`. The Day-4 writeup's premise that refinery "keys off `merged_commit` metadata on closed beads" is **wrong**. `merged_commit` is a write-output only. Same shape as Day-7's mc-ma23a9 premise inversion. |
+| 1 — locate refinery code paths | 2026-05-12 | Per submodule AGENTS.md ("ZERO hardcoded roles. If a line of Go references a specific role name, it's a bug"), refinery isn't a Go thing. Its behavior lives in `agent.toml`, `prompt.template.md`, and the formula `mol-refinery-patrol.toml`. Found at `study/gascity-src/examples/gastown/packs/gastown/`. |
+| 2 — read the formula's discovery step | 2026-05-12 | `mol-refinery-patrol.toml`, step `find-work`: discovery predicate is `gc bd list --assignee=$GC_AGENT --status=open --exclude-type=epic --limit=1`, followed by a requirement that `metadata.branch` exist on the matched bead. **No closed beads. No `merged_commit`.** Refinery enters a `gc events --watch --type=bead.updated` loop with exponential-backoff timeout when no work is found. |
+| 3 — pull `auth-wg0` from co_auth's bead store via direct dolt | 2026-05-12 | Current (post-fix) state: status=closed, assignee=co_auth/gastown.refinery, metadata includes `branch`, `target`, `merged_at`, `merged_commit`, `refinery_pushed_at`, `refinery_pushed_by`, `work_dir`. So the data fields all exist now — the question is when. |
+| 3.5 — reconstruct auth-wg0 timeline from events.jsonl | 2026-05-12 | **The Day-4 narrative is wrong in two specific places.** Real timeline (PDT): 09:21:19 mayor creates → 10:03:54 polecat (`furiosa`) claims, status=in_progress, sets branch+work_dir → 10:04:30 human reverts to status=open, clears assignee → 10:10:14 polecat adds `target` metadata → **10:10:19 polecat sets assignee=co_auth/gastown.refinery**, status remains open, full metadata present → **(1h 19m gap)** → 11:29:58 human closes with `merged_at`+`merged_commit` → 11:35:51 refinery adds `refinery_pushed_at`+`refinery_pushed_by`. **Polecat DID NOT skip the handoff** — it explicitly assigned to refinery with all required metadata. The bead was in a valid discoverable state at 10:10:19. |
+| 4 — verify refinery session was running during the gap | 2026-05-12 | `session.woke` for `co_auth/gastown.refinery` at 09:59:19; `session.stopped` at 13:29:30. Running through the entire gap. |
+| 5 — verify there were events in the gap that should have triggered refinery's watch | 2026-05-12 | **2534 `bead.updated` events** in the gap window (2401 by `human`, 52 by `cache-reconcile`, 43 by `gastown.deacon`, 34 by `co_shipping/gastown.refinery`, 3 by `co_auth/gastown.furiosa`, 1 by `co_auth/gastown.refinery` itself). Refinery's `gc events --watch --type=bead.updated` should have triggered thousands of re-checks. None visibly happened — refinery had zero actor-side bead activity from 10:02:21 (Wisp #2 created) until 11:35:51 (auth-wg0 push). |
+| 6 — inspect the stuck patrol wisp | 2026-05-12 | Attempted direct dolt query against `auth.issues` for `auth-wisp-cnxi` — silent empty result on multiple `SELECT` attempts despite `SHOW TABLES` working. Dolt instability (consistent with Day-6 reconciler perf finding). Skipped; not essential to the primary diagnosis. |
 
 ### Hypothesis confirmed
 
-- Which of H1 / H2 / H3 (or other):
-- Discovery predicate (exact code reference):
-- Why `auth-wg0` was skipped:
-- Evidence:
+- **Discovery predicate (exact reference):** `gc bd list --assignee=$GC_AGENT --status=open --exclude-type=epic --limit=1` plus `metadata.branch` required, at `study/gascity-src/examples/gastown/packs/gastown/formulas/mol-refinery-patrol.toml` step `find-work`. Closes the question with H2 (bead-metadata-driven), not H1 (branch-driven) as guessed.
+- **Why `auth-wg0` was skipped on Day-4:** It WASN'T skipped at the discovery-predicate level. Polecat correctly assigned it to refinery at 10:10:19 with valid `branch`/`target`/`work_dir`/`gc.routed_to` metadata. The bead was in a state that satisfies the discovery predicate exactly. The actual failure was **refinery's running patrol wisp didn't react to 2534 bead.updated events over 1h 19m**, including the polecat's own assignment event. That's a second-order bug, not a discovery-predicate issue.
+- **Evidence:** events.jsonl timeline reconstruction; the formula's `find-work` step text; the empty `merged_commit` grep across all of upstream.
 
 ### Was the Day-4 writeup accurate?
 
-- "keys off `merged_commit` metadata on closed beads":
-- Verdict:
+- **"keys off `merged_commit` metadata on closed beads":** False. Discovery looks at OPEN beads. `merged_commit` is a write-output only and has zero read-side code in upstream.
+- **"polecat finished `auth-wg0` and drained without closing the bead":** Partially true. Polecat didn't close the bead — but that's the correct contract (refinery closes, not polecat). What polecat DID do correctly: pushed the branch, set metadata (branch, target, work_dir, gc.routed_to), and assigned the bead to refinery. The Day-4 framing makes it sound like polecat dropped the handoff entirely. It didn't.
+- **"The human had to manually close `auth-wg0` with full merge metadata":** True, but the cause attributed (refinery's discovery looking at closed beads with merged_commit) is wrong. The real reason the human had to intervene is that refinery's patrol wisp got stuck for 1h 19m despite the bead being correctly assigned with the right metadata.
+- **Verdict:** v2 manual §19 needs a correction. The "Mayor's `PAUSE for Gn` spec anti-pattern" framing should change: the anti-pattern isn't "polecat skips closure," it's "polecat assigns but no nudge happens, and refinery's patrol-only path can be unreliable on its own." The fix isn't "tell polecat to close normally" — it's "tell polecat to nudge refinery after assignment, or rely on the controller nudging refinery on bead.updated events with assignee transitions."
 
 ### Fix applied (if any)
 
-- Diagnosis-only end state is valid.
-- If a bug found and filed: bead ID + summary:
+- **Diagnosis-only end state.** No code changes.
+- **Documentation fix in scope:** v2 manual §19 to be corrected (separate edit, batched with the §22 promotion).
+- **Follow-up bead:** to file — refinery patrol wisp doesn't reliably react to bead.updated events under live conditions (Wisp #2 was stuck through 2534 events). Either `gc events --watch --type=bead.updated` is unreliable, the formula's exponential-backoff has a coverage gap, or refinery's session was somehow event-isolated during that window. Worth tracking but not diagnosing further today.
 
 ### Surprises
 
-(things this plan got wrong, or new gaps surfaced during the work)
+1. **Day-4 line 224's writeup got the central claim wrong.** Day-7 taught "Step 1.5 falsification catches bad bead premises"; Day-8 confirms that the same pattern catches bad writeup premises. The five-line narrative on line 224 misattributes the failure to discovery logic when the real failure is in event-driven wake-up.
+2. **The contract from refinery's prompt is crisp**: "polecats push a branch, set metadata on the work bead (`branch`, `target`), and assign it to you. You merge … then close the bead." This was already in upstream all along; the Day-4 writeup just didn't read it.
+3. **Refinery is configured-driven, not hardcoded.** The submodule's AGENTS.md says "ZERO hardcoded roles," and refinery is a clean example: zero refinery-specific Go code, all behavior comes from the agent's config + prompt + formula. This is a stronger version of "templates over code" than I expected.
+4. **The real bug uncovered (refinery's watch not reacting) is harder to diagnose than the original S5 question.** It might involve the city API streaming layer (Day-6 noted "2-9 sec API responses" — slow API could starve `gc events --watch`). The S5 investigation incidentally exposed a downstream consequence of Day-6's reconciler-cycle-latency issue.
+5. **`gc events --watch` requires the streaming city API** (`cmd_events.go:769` requires `requireStreamingCityAPI`). If the controller is slow or the API endpoint is degraded, refinery's wisp could be sitting in a broken watch waiting on an SSE stream that never delivers. This is consistent with the symptom but not yet proven.
 
 ### Anything to promote to v2 manual
 
-(workflow insights worth durable documentation — especially refinements to §19)
+1. **Correct §19 "Mayor's `PAUSE for Gn` spec anti-pattern" subsection.** The current text says polecat reads "STOP" too literally and skips its closure step, stranding the merge. The corrected framing should be: polecat DOES the handoff (branch, metadata, assignee=refinery), but if refinery's patrol wisp doesn't react to the bead.updated event in a timely way (separate bug, see follow-up bead), the bead can sit indefinitely. The mitigating practice is to **explicitly `gc session nudge co_auth/gastown.refinery "<bead-id> ready"`** after polecat drains — already documented in §19's "nudge refinery pattern" subsection but not connected to the PAUSE pattern explanation.
+2. **Correct §19 "What refinery actually does" subsection.** The current line 808 says "records `merged_commit` on the bead" — true. But the line earlier in the writeup ("its discovery logic keys off `merged_commit` metadata on closed beads") is the part that was wrong. Make sure §19 says: *Discovery looks at OPEN beads with `assignee=self` + `metadata.branch` present. `merged_commit` is a write-output recorded after merging, not a discovery key.*
+3. **Add a §23 or §22 subsection: "Don't trust your own notes' diagnosis."** Day-7 + Day-8 both invalidated a Day-N writeup via Step 1.5 grep. Worth promoting the pattern: when revisiting a deferred observation, grep for the central claim's exact terms in upstream code BEFORE accepting the framing. Same shape as the "silent failure via `2>/dev/null`" principle in §22.

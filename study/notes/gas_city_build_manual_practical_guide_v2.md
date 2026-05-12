@@ -790,6 +790,14 @@ The implicit handoff between polecat (work-producer) and refinery (work-merger) 
 
 ## What polecat actually does
 
+**Prerequisite: the bead must have `gc.routed_to` set before pool scaling will materialize a polecat.** Mayor sets this when filing beads. If you file a bead directly via `bd create` (light-mayor path), set it yourself:
+
+```bash
+bd create "<task>" --set-metadata gc.routed_to=<rig>/gastown.polecat
+```
+
+Day-9 (2026-05-12) confirmed this is load-bearing: a bead with no `gc.routed_to` sat for 12 minutes invisible to the pool scaler; after the field was added, polecat materialized in 69 seconds. Day-4 S6's note that polecat "claims regardless of routed_to" applies to *which* polecat claims after the pool scales — not to whether scaling happens at all.
+
 A polecat session in a rig:
 
 1. Claims a ready non-gate bead from its rig's queue.
@@ -810,12 +818,12 @@ A refinery session in the same rig:
 2. Discovers work via `bd list --assignee=$GC_AGENT --status=open --exclude-type=epic --limit=1`, then verifies the matched bead has `metadata.branch`. **Discovery is purely bead-metadata-driven; the branch state on disk is not the discovery input — the bead's metadata is.**
 3. Rebases the branch onto `target`. If the rebase conflicts, returns the bead to the pool with rejection metadata and waits for a polecat to retry.
 4. Runs configured quality checks (build/lint/typecheck/test as set in `mol-refinery-patrol` vars).
-5. Fast-forwards (or merge-commits for non-FF), records `merged_commit` on the bead.
+5. Fast-forwards (or merge-commits for non-FF), records `merged_sha` (the new merge commit SHA), `merged_target` (the branch merged into), and `merge_result` (e.g., `"merged"`) on the bead. Day-4 narrative used `merged_commit` / `merged_at` / `refinery_pushed_at` — those names appear in older bead histories but the current refinery write-outputs are the three above (verified Day-9 2026-05-12 in `study/notes/2026-05-12-day9-validation-run.md`).
 6. Closes the bead with full merge metadata.
 
 So refinery does **both the merge and the close**. The polecat → refinery boundary is a clean producer/consumer split mediated by the bead itself — the `assignee` field is the handoff signal.
 
-**`merged_commit` is a write-output, never a discovery input.** Discovery only looks at OPEN beads. Be skeptical of any narrative that says refinery "keys off `merged_commit`" — that's backwards. (Caught while diagnosing S5 on 2026-05-12 — see `study/notes/2026-05-12-s5-refinery-work-discovery.md`.)
+**`merged_sha` is a write-output, never a discovery input.** Discovery only looks at OPEN beads. Be skeptical of any narrative that says refinery "keys off `merged_sha`" (or `merged_commit`, the older field name) — that's backwards. (Caught while diagnosing S5 on 2026-05-12 — see `study/notes/2026-05-12-s5-refinery-work-discovery.md`.)
 
 ## The "nudge refinery" pattern
 
@@ -840,6 +848,22 @@ The fix is in mayor's prompting, not in polecat behavior:
 **Write instead:** `"Implement X. Push the branch, set merge metadata, assign to refinery, and nudge refinery before draining. Then stop. Downstream beads remain blocked until auth-G2 is closed by a reviewer."`
 
 The explicit "nudge refinery" instruction makes the handoff complete regardless of watch reliability.
+
+## How to file a polecat-friendly bead spec
+
+When filing a bead directly (without mayor):
+
+1. **Set `gc.routed_to=<rig>/gastown.polecat` at create-time** — REQUIRED for pool scaling. The pool scaler doesn't see beads without this field, even if everything else is in order.
+2. **Include the §19 polecat step sequence in the description** — explicit numbered steps for push branch → set metadata → assign to refinery → nudge refinery → drain. Don't assume polecat will figure it out from the task scope alone; the §19 contract is the prompt's spine.
+3. **Use a P3 task priority** unless there's a reason to surface it higher.
+
+```bash
+bd create "<short task title>" --type task --priority 3 \
+  --set-metadata gc.routed_to=<rig>/gastown.polecat \
+  --description "..."
+```
+
+When mayor files beads, mayor handles all of this for you (mayor's prompt has the §19 contract baked in). The light-mayor path requires that you do it yourself.
 
 ---
 
@@ -948,16 +972,24 @@ fi
 
 This pattern was applied on Day-7 to `dolt-target.sh` and `runtime.sh` in both `.gc/system/packs/` (local, gitignored) and `study/gascity-src/examples/...` (upstream, on branch `rjgeng/fix/dolt-pack-script-state-fallback`).
 
+**State files are not durable under reconciler I/O saturation.** Day-9 (2026-05-12) observed that `dolt-state.json` and `dolt-provider-state.json` were both absent throughout a 30-minute `gc start` run. The controller's `publishManagedDoltRuntimeState` never completed — same root cause as `mc-f7u8fz` (reconciler cycle p50=27s baseline; Day-9 measured 65-230s per cycle). Practical implications:
+
+- Treat state files as best-effort. They may be stale or entirely missing — they are not the single source of truth.
+- The pack-script secondary-fallback pattern above is the defensive design: it handles missing canonical AND missing bd-bridge state files.
+- `bd dolt status` may report "not running" while dolt IS running. Verify with `lsof -nP -iTCP -sTCP:LISTEN -p <dolt-pid>` for the actual listening port.
+- Reference: `study/notes/2026-05-12-day9-validation-run.md` (execution log "Soft observations").
+
 ## Falsifying a deferred observation's premise before acting
 
 When you revisit a deferred observation from a prior day — a bead's prescribed fix, a notes file's diagnosis, a memory's claim — **don't trust it. Grep the upstream source for the exact terms the writeup uses, before acting on the prescription.**
 
-This was the central lesson of Day-7 and Day-8:
+This was the central lesson of Day-7, Day-8, and Day-9:
 
 - **Day-7 (`mc-ma23a9`)**: bead claimed `dolt-state.json` was legacy and `dolt-provider-state.json` was canonical. A 30-second `grep -rn "dolt-state.json" study/gascity-src/cmd/` returned 20+ hits in production Go code, including the file's own comment ("The only managed-local authority is `.gc/runtime/packs/dolt/dolt-state.json`"). The bead's premise was inverted. The originally-planned "rename hardcoded constant" fix would have broken the controller-managed path.
 - **Day-8 (S5)**: Day-4 writeup claimed refinery's discovery "keys off `merged_commit` metadata on closed beads." A 30-second `grep -rn "merged_commit" study/gascity-src/` returned **zero** hits in production code. `merged_commit` is a write-output, never a discovery input. The actual discovery predicate is `assignee=$GC_AGENT AND status=open AND type!=epic AND metadata.branch present`.
+- **Day-9 (validation run)**: Day-4 S6 narrative said the pool reconciler "claims any ready non-gate work in its rig regardless of `routed_to`." That was true for *which* polecat claims, not for *whether* pool scaling happens. Cheapest falsification: file a test bead without `gc.routed_to` and observe (Day-9: bead stranded 12 min until field added; +69s after fix → polecat materialized). The framing in §19 had to be tightened to mark `gc.routed_to` as a prerequisite, not just an in-pool routing hint.
 
-**The pattern:** before any fix-or-investigate step that depends on a prior writeup's framing, run the cheapest possible falsification — `grep` upstream for the central nouns in the writeup. If they don't appear where the writeup says they do, the premise is wrong; redirect.
+**The pattern:** before any fix-or-investigate step that depends on a prior writeup's framing, run the cheapest possible falsification — `grep` upstream for the central nouns in the writeup, or run a controlled test with the smallest possible scope. If they don't appear where the writeup says they do, the premise is wrong; redirect.
 
 This pairs with §22's "silent failure via `2>/dev/null`" principle: that one says "don't trust a script's masked output," this one says "don't trust your own past notes." The shape is the same — re-run the underlying evidence-gather, don't accept the summary.
 

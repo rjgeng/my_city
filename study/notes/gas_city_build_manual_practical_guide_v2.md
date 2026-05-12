@@ -1066,3 +1066,105 @@ The typical shape of a non-trivial cycle:
 **The cost almost always lives in the gap** between cycle_start (offset 0) and the per-bead session_baseline burst. That gap corresponds to `CityRuntime.tick()` body — repeated `loadSessionBeadSnapshot()` calls, `syncBeadsAndUpdateIndex` writes, tmux `ListRunning` probes, etc. If the gap dominates the cycle duration, the bottleneck is pre-`beadReconcileTick` I/O; if the tail (after `cycle_input_snapshot`) dominates, it's start/mutation work.
 
 This single shape rule lets you classify a slow cycle in one look at its waterfall.
+
+# 24. Upstreaming a Gas City fix: the contributor playbook
+
+When you find a real bug in `study/gascity-src/` and want it merged upstream, this is the workflow. First written after PR #2037 (2026-05-12, `fix(packs): fallback to dolt-provider-state.json`) — the first contribution from this city — but generalized for any future fix.
+
+The whole thing is ~30 minutes wall-clock if Go is already installed and you're comfortable with `gh` CLI. Add ~5 min if Go isn't installed yet.
+
+## Pre-flight: read what the project expects
+
+```bash
+cd study/gascity-src
+cat CONTRIBUTING.md
+cat .github/PULL_REQUEST_TEMPLATE.md
+```
+
+Two things to extract:
+
+- **Required tests**: Gas City wants `make check` (fast Go quality gates: lint + vet + test). `make check-docs` for doc changes. `make test-integration` for runtime/controller behavior changes.
+- **PR template structure**: Summary / Testing / Checklist sections. Copy this skeleton; don't freestyle.
+
+## Rebase to current main before pushing
+
+Even if your branch was originally cut from main, the upstream advances continuously. Two minutes of rebase work saves a "branch out-of-date" reviewer round-trip.
+
+```bash
+git fetch origin
+git log <your-base>..origin/main -- <files-you-changed>   # spot conflict risk
+git rebase origin/main
+```
+
+If `git log <range> -- <paths>` returns commits that touched your specific files, **read them with `git show --stat`** before rebasing. The diff might be in a non-overlapping section (like a function-append at end of file) — that rebases cleanly. If hunks overlap, plan the resolution before starting.
+
+## Run the project's test gate locally
+
+```bash
+which go || brew install go     # gas city needs go 1.26+
+make check
+```
+
+`make check` runs lint, vet, and the full Go unit test suite. First run can take 5-15 min (downloads deps + compiles test binaries). Subsequent runs are faster.
+
+**If you get "parallel golangci-lint is running"**: an earlier interrupted `make` left a lint process alive. `pgrep -lf golangci-lint`, `kill` the pid, retry.
+
+**`make check 2>&1 | tail -N` looks empty during long runs.** `tail` only emits after the input stream closes — for long-running pipelines, captured output appears empty until make exits. Don't panic. Check `pgrep -lf "make check\|go test\|golangci"` to see whether work is actually in flight.
+
+If `make check` passes, the `[x] make check` checkbox in the PR template is honest.
+
+## Fork, push, PR
+
+```bash
+gh repo fork <upstream-org>/<repo> --clone=false
+git remote add fork https://github.com/<your-handle>/<repo>.git
+git push -u fork <your-branch-name>
+gh pr create \
+  --repo <upstream-org>/<repo> \
+  --base main \
+  --head <your-handle>:<your-branch-name> \
+  --title "..." \
+  --body-file /tmp/pr-body.md
+```
+
+**Branch naming**: Gas City's CONTRIBUTING.md suggests `fix/*`, `feat/*`, `refactor/*`, `docs/*`. The format `<user>/fix/<topic>` also works (PR #2037 used `rjgeng/fix/dolt-pack-script-state-fallback`); some projects prefer the user-prefix style, some don't. When in doubt, follow recent merged PRs as the empirical convention.
+
+**Title length**: keep under 72 chars per Gas City conventions. Conventional-commit prefixes (`fix(scope):`, `feat(scope):`, etc.) match recent merged commits.
+
+## PR-body honesty pattern
+
+The PR template has checkboxes. **Don't fake-check them.** If you didn't run `make test-integration`, leave it unchecked and explain why in the body:
+
+```markdown
+## Testing
+
+- [x] `make check` — passed locally on macOS (Go 1.26.3)
+- [ ] `make check-docs` — N/A (no docs changed)
+- [ ] `make test-integration` — not run locally; change is shell-only with no Go logic touched
+```
+
+Same for the Checklist section: if a regression test would be hard to land, say so and offer to add one based on reviewer guidance. Maintainers appreciate the honesty far more than a fully-checked-but-untruthful template.
+
+**Discovery context section**: most PR templates don't ask for this, but a short paragraph explaining *how* you found the bug is high-value. For PR #2037 the Discovery section linked the local triage process; that's exactly the kind of context a reviewer can't get from the diff alone.
+
+## Post-submit: wait, watch, iterate
+
+After `gh pr create`:
+
+- **CI may be "awaiting maintainer approval"** for first-time contributors. This is normal — GitHub Actions security policy. Don't poke; wait for a maintainer to click the approve button.
+- **"Branch out-of-date with base"** may appear after a few hours as upstream advances. The PR page will say "cleanly mergeable" if no conflicts. Wait for a maintainer cue before force-pushing; rebasing during active review can invalidate their work.
+- **Email notifications** from GitHub are the primary signal — check `gh pr view <num> --repo <upstream>` if you want CLI status without refreshing the browser.
+- **No response in 24-72h**: still normal. After 7+ days with no activity, a polite "anything I can help unblock?" is acceptable.
+- **Feedback comes**: read carefully, iterate, push to the same branch (it auto-updates the PR). Don't force-push during review unless asked.
+
+## Things to NOT do
+
+- Don't push unrelated work to the PR's branch.
+- Don't @-mention maintainers asking for review faster.
+- Don't open a duplicate PR if the first sits.
+- Don't argue with feedback personally — engage technically with evidence.
+- Don't squash or amend the PR commits while review is in flight (maintainers usually squash at merge time).
+
+## Anatomy of PR #2037 (the worked example)
+
+Commit `48191657` on branch `rjgeng/fix/dolt-pack-script-state-fallback`. 21 lines across two shell scripts. Surfaced via the Day-5 JSONL push storm; diagnosed in `study/notes/2026-05-12-mc-ma23a9-dolt-state-filename-fix.md`; PR opened at <https://github.com/gastownhall/gascity/pull/2037>. The whole journey took 10 days of background work plus ~90 minutes of focused contributor-workflow execution on Day-11.

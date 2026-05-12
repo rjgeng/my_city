@@ -180,34 +180,52 @@ Skip. Reasons (same shape as Day-6):
 
 ## 10. Execution log
 
-(filled in as work happens)
-
 ### Steps run
 
 | Step | Time | Finding |
 |---|---|---|
-| | | |
+| 1 — read scripts in context | 2026-05-12 | Both scripts already honor `GC_DOLT_STATE_FILE` env override — hardcoded `dolt-state.json` is only the fallback. Premise of bead (rename hardcoded constant) is incomplete: env-injection is the primary path. |
+| 1.5 — grep upstream for legacy name | 2026-05-12 | **Premise inverted.** `dolt-state.json` is canonical in 20+ upstream Go files including `cmd/gc/beads_provider_lifecycle.go:864` ("The only managed-local authority is `.gc/runtime/packs/dolt/dolt-state.json`"). Written by `publishManagedDoltRuntimeState`. `dolt-provider-state.json` is what the bd pack writes (`gc-beads-bd.sh:2482`). Renaming the hardcoded constant would have **broken** the controller-managed Go path. |
+| 2 — falsify resolver availability | 2026-05-12 | `gc dolt-state runtime-layout` returns **empty output** when controller is stopped. Option 2 (resolver-based) is **not viable** as planned. The real wire-up is `providerLifecycleDoltPathEnv` at `lifecycle.go:1381-1393` setting `GC_DOLT_STATE_FILE` env when the controller invokes pack scripts. |
+| 2.5 — find the actual upstream design | 2026-05-12 | Smoking-gun commit `921cb292`: "fix: recover dolt-state.json from stale or missing provider state". Two files by design: bd pack writes `dolt-provider-state.json`, controller publishes `dolt-state.json` as canonical authority by reading provider-state + port-probe verification. JSON shape is compatible — both have `running, pid, port, data_dir, started_at`. |
+| 3 — design real fix | 2026-05-12 | **Secondary-fallback pattern** instead of either Option 1 or Option 2 from the original plan. Order: `GC_DOLT_STATE_FILE` env → `dolt-state.json` (canonical) → `dolt-provider-state.json` (bd-pack) → legacy default. Preserves both lifecycle paths. |
+| 4 — patch locally | 2026-05-12 | Applied to `.gc/system/packs/maintenance/.../dolt-target.sh:145-158` and `.gc/system/packs/dolt/.../runtime.sh:29-37`. Parallel if-elif-elif-else chains. |
+| 5 — verify live | 2026-05-12 | Setup: `dolt-state.json` absent, wrote fresh `dolt-provider-state.json` matching the running dolt server (pid=32053, port=50213, running=true). Sourced `dolt-target.sh` in a clean shell with no env. Result: `DOLT_STATE_FILE=…/dolt-provider-state.json`, `GC_DOLT_PORT=50213`. `dolt_sql -q "SHOW DATABASES;"` returned the actual rig databases (auth, cs, hq, hw, ship). **Fix proven end-to-end.** |
+| 6 — stage upstream | 2026-05-12 | Both upstream files in `study/gascity-src/examples/` were byte-identical to local. Applied parallel patch. Created branch `rjgeng/fix/dolt-pack-script-state-fallback` (submodule was in detached HEAD; needed branch first). Commit `291b37c2`. **Not pushed; awaiting explicit sign-off.** |
+| 7 — close bead | 2026-05-12 | `mc-ma23a9` closed with a comprehensive close reason capturing the inverted premise and the actual fix. |
 
 ### Decision actually taken
 
-- Resolver vs rename:
-- Local-only vs upstream-staged vs upstream-PR:
-- Rationale:
+- **Resolver vs rename:** Neither. The original two options were both wrong because the bead's premise was inverted. Picked **secondary-fallback** instead — preserves both the controller-managed path (uses `dolt-state.json` when present) and the standalone-bd path (uses `dolt-provider-state.json` when only that exists).
+- **Local-only vs upstream-staged vs upstream-PR:** Middle path per plan §4 Step 6. Local applied, upstream staged on branch, not pushed.
+- **Rationale:** End-to-end verified locally; the upstream branch is durable and ready when the user is ready to engage upstream review.
 
 ### Files changed
 
-- Local (`.gc/system/packs/`):
-- Upstream (`study/gascity-src/packs/`):
+- **Local** (`.gc/system/packs/`):
+  - `maintenance/assets/scripts/dolt-target.sh` lines 145-158
+  - `dolt/assets/scripts/runtime.sh` lines 29-37
+  - Both gitignored locally; will be reset on `gc doctor --fix` or pack reinstall.
+- **Upstream** (`study/gascity-src/examples/`):
+  - `gastown/packs/maintenance/assets/scripts/dolt-target.sh`
+  - `dolt/assets/scripts/runtime.sh`
+  - Committed on branch `rjgeng/fix/dolt-pack-script-state-fallback` (commit `291b37c2`).
 
 ### Verification
 
-- Day-5 reproduction case re-run:
-- Outcome:
+- **Day-5 reproduction case re-run:** `dolt-state.json` absent + fresh `dolt-provider-state.json` with running dolt on port 50213.
+- **Outcome before fix:** `DOLT_STATE_FILE` resolves to non-existent `dolt-state.json` → `managed_runtime_port` returns empty → falls back to port 3307 → connection fails (Day-5 symptom).
+- **Outcome after fix:** `DOLT_STATE_FILE` falls through to `dolt-provider-state.json` → reads port 50213 → `dolt_sql` connects → `SHOW DATABASES` returns real rig databases. **Passes.**
 
 ### Surprises
 
-(things this plan got wrong, or new gaps surfaced during the work)
+1. **The bead's premise was completely backwards.** It claimed `dolt-provider-state.json` was canonical; actually `dolt-state.json` is. This is the single biggest lesson of Day-7: **Step 1.5 (grep upstream for the legacy filename) saved us from a wrong fix.** Without the grep, Option 1 would have been applied and broken the controller-managed path.
+2. **`gc dolt-state runtime-layout` requires the controller to be running.** Even with dolt itself running (via `bd dolt start`), the resolver returns nothing when the controller is stopped. Option 2 in the original plan was non-viable from the start; the falsification step caught it before any code changed.
+3. **Two state files exist by design**, not by accident. The bd pack is a "backend bridge" that doesn't own runtime-layout policy (per its own comment); the GC controller does. The bd pack writes provider-state, the controller publishes canonical state by reading provider-state + port-probe verification. Commit `921cb292` is the smoking gun for this design.
+4. **The hardcoded fallback is correct as the LAST resort.** `dolt-state.json` IS the canonical name; the fall-through is a "best guess if env injection didn't happen and no state file exists" path. The real bug was the lack of an intermediate fallback to `dolt-provider-state.json` (the file that bd pack actually writes locally).
+5. **The plan's Step 1.5 was added as a risk-section note, not a primary step.** It became the most valuable step of Day-7. Lesson: pre-thought risk-section items deserve primary-step billing when they could falsify the premise.
 
 ### Anything to promote to v2 manual
 
-(workflow insights worth durable documentation)
+1. **"Step 1.5 was the most important step" pattern.** When a bead prescribes a fix, the cheapest possible falsification (`grep` for the thing the bead claims is broken across the broader codebase) often invalidates or refines the prescription. Worth adding to §22 as a complement to "silent failure via `2>/dev/null`": this is "wrong-direction-fix via incomplete-evidence."
+2. **The two-state-files architecture** is a real recurring nuance worth documenting once. bd pack writes `dolt-provider-state.json`; controller publishes `dolt-state.json` as canonical. Pack scripts reading state should try both, with canonical winning when both exist. This is a §22-style cross-pack convention.

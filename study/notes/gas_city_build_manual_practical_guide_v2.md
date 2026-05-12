@@ -918,3 +918,66 @@ STATE_FILE="$CITY/.gc/runtime/packs/dolt/dolt-state.json"
 # Resolver-based — survives renames:
 STATE_FILE=$(gc dolt-state runtime-layout | awk '/GC_DOLT_STATE_FILE/ {print $2}')
 ```
+
+# 23. Reconciler Diagnostics via `gc trace`
+
+When the controller feels slow, when the supervisor stderr emits `slow_storage_degraded` warnings, or when `gc shell` lags inside the mayor session, the first instinct is to grep supervisor logs. There's a better tool: `gc trace`. It reads persisted reconciler trace records from `.gc/runtime/session-reconciler-trace/segments/<day>/segment-N.jsonl`, and the relevant analysis is usually a one-shot query against historical data — no city restart, no live reproduction needed.
+
+The upstream debug workflow lives at `study/gascity-src/engdocs/contributors/reconciler-debugging.md`. The points below are the practical takeaways from Day-6's investigation.
+
+## `gc trace` works fully offline
+
+The trace stream is local JSONL written by the controller as it runs. After the controller stops, the data stays on disk and `gc trace show / cycle / status` continue to read it. **Reproduction is rarely required to diagnose reconciler behavior** — just query the segments.
+
+```bash
+# Stream summary (head sequence, day directories, arms)
+gc trace status
+
+# All cycle_result records over the last 4 days, as JSON
+gc trace show --type cycle_result --since 96h --json > /tmp/cycles.json
+
+# Full record list for a specific tick (slow cycles you want to drill into)
+gc trace cycle --tick <tick-id-from-cycle_result> --json > /tmp/cycle.json
+```
+
+The Day-6 diagnosis (filed as bead `mc-f7u8fz`) was completed entirely from offline trace data — 2900 historical cycle_result records were already on disk before the investigation started.
+
+## `slow_storage_degraded` is a fsync-budget warning, not a storage diagnosis
+
+The stderr line `trace: slow_storage_degraded: <tick-id> Durable` (emitted at `cmd/gc/session_reconciler_trace_collector.go:976`) fires when one `fsync` of a small JSONL append to `.gc/runtime/session-reconciler-trace/segments/...` exceeds **25 ms** (`sessionReconcilerTraceDurableWait = 25 * time.Millisecond` at collector.go:22). That budget is tight vs. macOS APFS `fsync` variance under any concurrent write load (especially dolt commits), so the warning fires noisily and reports nothing actionable about what is actually slow.
+
+**Don't chase the warning. Chase the cycle.** The interesting field is `duration_ms` on `cycle_result` records — that's the real per-tick reconciler latency.
+
+```bash
+# Cycle latency distribution, p50/p95/max
+gc trace show --type cycle_result --since 24h --json \
+  | jq '[.[] | .duration_ms] | sort | length as $n |
+        {p50: .[$n/2|floor], p95: .[$n*95/100|floor], p99: .[$n*99/100|floor], max: .[-1]}'
+```
+
+If `p50` is over a few hundred ms the reconciler is I/O-bound and `slow_storage_degraded` is a downstream symptom — fix the cycle, not the trace fsync.
+
+## Reconciler cycle anatomy: `cycle_offset_ms` is the waterfall
+
+Every record inside a cycle carries a `cycle_offset_ms` field — the milliseconds since `cycle_start`. Sorting the records of one cycle by that field reproduces the in-cycle waterfall and shows exactly where time was spent.
+
+```bash
+gc trace cycle --tick <tick-id> --json \
+  | jq -r '.[] | "\(.cycle_offset_ms)ms\t\(.record_type)\t\(.site_code // "")\t\(.fields.reason_code // "")"' \
+  | sort -n
+```
+
+The typical shape of a non-trivial cycle:
+
+```
++0ms       cycle_start
++0ms       session_baseline   (open_count summary)
++0ms       batch_commit x N   (trace flush from previous cycle)
++Ngap ms   session_baseline   (per-bead burst — the real reconcile body starts here)
++Ngap ms   template_tick_summary x N
++dur ms    cycle_result       (cycle.finish)
+```
+
+**The cost almost always lives in the gap** between cycle_start (offset 0) and the per-bead session_baseline burst. That gap corresponds to `CityRuntime.tick()` body — repeated `loadSessionBeadSnapshot()` calls, `syncBeadsAndUpdateIndex` writes, tmux `ListRunning` probes, etc. If the gap dominates the cycle duration, the bottleneck is pre-`beadReconcileTick` I/O; if the tail (after `cycle_input_snapshot`) dominates, it's start/mutation work.
+
+This single shape rule lets you classify a slow cycle in one look at its waterfall.

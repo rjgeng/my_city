@@ -247,6 +247,8 @@ None. This is upstream code in the `gascity-src` submodule; fix would require ei
 
 ### Anything to promote to v2 manual
 
+**Promoted to v2 manual §23 — "Reconciler Diagnostics via `gc trace`"** (this commit):
+
 1. **Diagnostic workflow: `gc trace` works offline.** When a reconciler symptom is suspected, `gc trace cycle --tick <id>` + `gc trace show --type cycle_result --since 24h` against persisted segments often diagnoses the issue without restarting the city. Reference: `engdocs/contributors/reconciler-debugging.md` in the gascity-src submodule.
 2. **`slow_storage_degraded` is a fsync-budget warning, not a storage diagnosis.** The interesting field is `duration_ms` on cycle_result records, not the stderr string. Use `gc trace show --type cycle_result --since Nh --json | jq` to triage cycle duration distribution.
 3. **Reconciler cycle anatomy:** every cycle has cycle_start at +0ms, then a gap of N ms doing dolt snapshot/sync I/O, then a burst of per-bead session_baseline records. `cycle_offset_ms` on each record is the waterfall. If the gap dominates, it's pre-reconcile I/O; if the tail (post-template-tick → cycle_result) dominates, it's start_execute/mutation work.

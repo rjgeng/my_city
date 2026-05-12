@@ -1168,3 +1168,56 @@ After `gh pr create`:
 ## Anatomy of PR #2037 (the worked example)
 
 Commit `48191657` on branch `rjgeng/fix/dolt-pack-script-state-fallback`. 21 lines across two shell scripts. Surfaced via the Day-5 JSONL push storm; diagnosed in `study/notes/2026-05-12-mc-ma23a9-dolt-state-filename-fix.md`; PR opened at <https://github.com/gastownhall/gascity/pull/2037>. The whole journey took 10 days of background work plus ~90 minutes of focused contributor-workflow execution on Day-11.
+
+## The issue-filing variant: when not to file an issue
+
+When you find a bug that's observable but lacks a clean fix-shape — for example, the diagnosis points at a code path you don't have enough Go-internal context to fix yourself — the natural impulse is to file an upstream issue. **Often the better move is to find the existing issue first and comment with your evidence.**
+
+Day-12 (2026-05-12) was the worked example. Local bead `mc-uhvbb9` (refinery patrol watch hangs under heavy reconciler I/O load) was diagnosed across Day-8 and Day-10. The plan was to file it as a new upstream issue. Step 1 of the plan (duplicate search) found `gastownhall/gascity#1487` — "bug: gc events HTTP API on :8372 returns context-deadline-exceeded intermittently under load." Different observable symptom (server-side timeout vs client-side silent hang), same hypothesized root cause (events HTTP server under load), and a prior comment by another contributor (A3Ackerman) had already identified the exact code location: serial fan-out in `internal/events/multiplexer.go` with no per-provider timeout.
+
+The right action wasn't "open a new issue." It was "comment on the existing thread with the client-side evidence, framed as complementary not redundant." That's what shipped: <https://github.com/gastownhall/gascity/issues/1487#issuecomment-4435041095>.
+
+### Duplicate-search rigor
+
+Cast a wide net before filing. Multiple query strings around the central nouns:
+
+```bash
+gh issue list --repo gastownhall/gascity --search "<obvious keyword>" --state all --limit 8
+gh issue list --repo gastownhall/gascity --search "<code-path keyword>"  --state all --limit 8
+gh issue list --repo gastownhall/gascity --search "<symptom keyword>"   --state all --limit 8
+gh issue list --repo gastownhall/gascity --search "<hypothesis keyword>" --state all --limit 8
+```
+
+Filter `--state all` (not just `open`) — closed issues with maintainer explanations are valuable signal too. If a query returns plausibly-related issues, **read them and their comments fully** before deciding. Day-12 found four hits across queries; one (`#1487`) was clearly related, one (`#1991`) was adjacent but actually a different bug whose own evidence table confirmed our scenario was working-as-expected.
+
+### When commenting beats new issue
+
+- The existing thread is open and active (recent activity, prior maintainer engagement).
+- Your evidence is complementary (different observable, same hypothesized cause) — adds a data point.
+- The existing thread already has a code-level root-cause analysis you couldn't have done yourself.
+- Posting consolidates the upstream record. Maintainers can apply one fix to address multiple downstream symptoms.
+
+### When new issue still beats commenting
+
+- The existing thread is stale (months of no activity) and your observation is a fresh symptom.
+- Your observation is in a clearly different subsystem despite a surface-similar symptom.
+- The existing thread is closed with a "won't fix" or "by design" disposition that doesn't apply to your case (rare; verify carefully before).
+
+### How to write the thread-joining comment
+
+The PR-template-honesty pattern from §24 extends here. Add value, don't restate. A useful comment has:
+
+1. **Opening sentence positioning your contribution** — "Adding a downstream-symptom data point that fits A3Ackerman's multiplexer-fan-out diagnosis from the client side." Names the prior work, frames yours as complementary.
+2. **Concrete observation, dated and timestamped** — what you saw, when, with enough detail to be falsifiable. Include event counts, log file paths, exact field names. (Day-12 comment: 2534 events, timestamps, the specific bead and wisp IDs.)
+3. **Correlation with prior diagnosis** — "This was during the same window where the reconciler was running heavy cycles..." links your finding to the existing thread's hypothesis.
+4. **A paired control or alternate case if you have one** — "Re-ran an equivalent handoff under nominal load: works in 9m 29s." Strengthens the load-specific framing.
+5. **Single sentence on what this adds** — "[Their root cause] explains both the server-side timeout AND the client-side silent hang. One upstream change, two downstream beneficiaries."
+6. **Low-stakes offer to provide more data** — "Happy to provide additional reproduction data if helpful." Don't promise; just leave the door open.
+
+Length target: 20-35 lines. Long enough to be substantive, short enough not to dilute the thread.
+
+### When the result is "best-case negative"
+
+If the duplicate-search finds your issue is already tracked, that's not a setback — it's the system working correctly. The upstream community has organized itself around the right concerns and you joined a thread instead of fragmenting it. Day-12 plan §5 framed this as "best-case negative outcome." It's actually one of the better outcomes — your evidence reaches maintainers in the place they're already looking, and you build relationship with the project's other contributors (commenting alongside them is a form of acknowledgment).
+
+The Day-12 mc-uhvbb9 bead stays OPEN locally with a link to the upstream comment. When the upstream fix lands, mc-uhvbb9 can be closed as fixed-upstream. No code review burden, no orphaned PR, no duplicate-issue cleanup needed.

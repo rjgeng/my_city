@@ -275,42 +275,52 @@ Skip. Personal-engagement work, same as Day-11.
 
 ## 10. Execution log
 
-(filled in as work happens)
-
 ### Pre-flight outcomes
 
-- Duplicate search results:
-- Issue template format:
-- Recent issue style observations:
-- Falsification grep (Step 1.5) results:
+- **Duplicate search results:** Four queries (`refinery watch`, `patrol bead.updated`, `events watch SSE`, `streaming API starvation`). Two strong candidates surfaced:
+  - **#1487** ("bug: gc events HTTP API on :8372 returns context-deadline-exceeded intermittently under load", P1, kind/bug) — server-side observation of the same hypothesized root cause. A3Ackerman's existing comment had already identified the code-level fix-target: serial fan-out in `internal/events/multiplexer.go` `ListTail` (lines 97-129) with no per-provider timeout. **Strong match.**
+  - **#1991** ("gc sling to pool template strands beads — both supervisor demand paths miss `assignee=<pool>` + `gc.routed_to=<pool>`", P1, kind/bug) — adjacent territory but **different bug**. Its own evidence table shows `assignee="" + gc.routed_to=<pool>` (the pattern Day-9 used after the fix) DOES work. Day-9's "no `routed_to` at all" case wasn't bug-shaped; the bead was filed without any routing hint. Already addressed in our v2 manual §19. Not a duplicate of mc-uhvbb9.
+- **Issue template format:** `.github/ISSUE_TEMPLATE/` has `bug_report.yml`, `config.yml`, `docs_report.yml`, `feature_request.yml`. Structured YAML form templates, not free-form.
+- **Recent issue style:** Conventional commit prefixes used on issue titles (`bug:`, `feat:`). Labels applied automatically by triage: `kind/bug`, `priority/p<N>`.
+- **Falsification grep (Step 1.5) results:**
+  - `find-work` step in `mol-refinery-patrol.toml` still uses `gc bd list --assignee=$GC_AGENT --status=open` (Day-8 framing still holds).
+  - `requireStreamingCityAPI` still gates `--watch` at `cmd/gc/cmd_events.go:769` (the SSE-stream dependency is still real).
+  - **Bonus discovery:** A3Ackerman's comment on #1487 already provides the code-level root cause we'd hypothesized — `internal/events/multiplexer.go` serial fan-out has no per-provider timeout, so any one stuck provider blocks the whole endpoint.
 
-### Issue filed
+### Action taken: commented, did NOT file new issue
 
-- URL:
-- Number: gastownhall/gascity#
-- Title used:
-- Labels applied (if any):
+Per plan §5 F1 ("best-case negative outcome"): consolidating onto the existing thread rather than fragmenting.
+
+- **Comment URL:** <https://github.com/gastownhall/gascity/issues/1487#issuecomment-4435041095>
+- **Posted at:** 2026-05-12T14:36:55-07:00
+- **Length:** 28 lines, structured as 4 sections (Observation / Correlation with reconciler load / Paired control / What this adds).
+- **Frame:** complementary to A3Ackerman's diagnosis — same root cause, client-side symptom. Notes that one upstream fix would address both visible downstream symptoms.
 
 ### Local bead linkage
 
-- [ ] `mc-uhvbb9` updated with upstream link
+- [x] `mc-uhvbb9` updated with `bd note` linking to the upstream comment. Bead stays OPEN locally pending upstream resolution of #1487.
 
 ### v2 manual extension
 
-- [ ] §24 issue-filing variant (or §25 added)
+- [x] §24 "The issue-filing variant: when not to file an issue" subsection added. Captures the Day-12-shaped lesson: search first, comment on existing threads when applicable, the "best-case negative outcome" framing. The original plan-§4 Step 6 envisioned this as an issue-filing playbook; the actual deliverable is **a thread-joining playbook**, since that's what Day-12 actually exercised.
 
 ### Iteration / response
 
 | Time | Event | Notes |
 |---|---|---|
-| | Issue filed | |
-| | First maintainer response | |
-| | Disposition (closed/in-progress/etc.) | |
+| 2026-05-12 14:36:55 | Comment posted on #1487 | First downstream comment to consolidate onto an existing thread |
+| | First maintainer reaction (if any) | (pending) |
+| | Disposition | (pending — bead stays OPEN until upstream fix lands) |
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+1. **The Day-12 plan was titled "File mc-uhvbb9 as upstream issue" but the actual deliverable was "Comment on existing upstream thread."** The Step 1 duplicate search redirected the work mid-flight. This is itself a meta-lesson: the plan's deliverable shape can change after the cheapest investigation step, and that's a *good* outcome, not a deviation to apologize for.
+2. **A3Ackerman's existing comment was higher-quality than the issue body itself.** The original issue (jwp23, 2026-04-29) framed the bug as a transient API timeout. A3Ackerman's later comment identified the code-level root cause and proposed fix shapes. Day-12's contribution joined that conversation as a third voice. **Takeaway:** when evaluating duplicates, read the COMMENTS not just the issue body. The current state of an upstream thread is the union of issue + comments.
+3. **PR #2037 has been triaged by upstream automation.** Labels `kind/bug, priority/p2` applied; Copilot AI reviewer "Commented" (a robot review); `remove-triage-label` + `add-triage-label` CI checks ran. No human maintainer yet, but the project's automation has acknowledged the PR. This is the normal first-day state for a new contributor's PR.
+4. **The upstream community is actively diagnosing this concern.** Multiple contributors (jwp23, A3Ackerman, now us) have engaged with #1487 across weeks. This isn't a forgotten issue — it's a tracked thread with momentum. Joining it as a third voice has more impact than opening a fourth thread.
+5. **The "issue filing" playbook in the plan needed restructuring.** What I drafted in §4 Step 3 was a new-issue body. The actual ship was a thread-joining comment with a different structure (opening sentence positioning, evidence sections, correlation, what-this-adds, optional offer). The v2 manual §24 extension reflects the actual workflow rather than the plan's draft.
 
 ### Anything to promote to v2 manual (beyond Step 6)
 
-(filled in after the response cycle)
+1. **Already done in this iteration:** §24 issue-filing variant subsection. Captures duplicate-search rigor (multiple queries, `--state all`, read comments-not-just-body), when commenting beats new issue, when new issue still beats commenting, the thread-joining comment structure, and the "best-case negative outcome" framing.
+2. **Implicit pattern worth noting elsewhere:** plans can change shape mid-flight when the cheapest investigation step (duplicate search, falsification grep, etc.) returns unexpected results. This is a §22 "premise falsification" extension — but for *plans*, not for *prior writeups*. The premise was "we'll file an issue"; falsification was "an issue already exists with strong prior work." Right move: pivot the plan, capture the lesson, ship the actual deliverable. Worth a paragraph somewhere — maybe in §22's premise-falsification subsection as a note that plans themselves are also subject to falsification.

@@ -211,34 +211,51 @@ Same pattern as Day-5: do it directly.
 
 ## 10. Execution log
 
-(filled in as work happens)
-
 ### Steps run
 
 | Step | Time | Finding |
 |---|---|---|
-| | | |
+| 1 — read emitter & types | 2026-05-12 | `slow_storage_degraded` fires when `appendBatch(...)` returns `errTraceFlushWaitBudgetExceeded`. Threshold `sessionReconcilerTraceDurableWait = 25ms` at `cmd/gc/session_reconciler_trace_collector.go:22`. Budget covers channel-enqueue (cap 8 batches) + writer `store.AppendBatch` doing `Write()` + `f.Sync()` on `.gc/runtime/session-reconciler-trace/segments/<day>/segment-N.jsonl` (store.go:420-428). Literal trigger: one fsync of a small JSONL append took >25ms. |
+| 2 — analyze persisted trace (city offline) | 2026-05-12 | The reconciler-debugging.md workflow + `gc trace` work against persisted segments even when controller is stopped. Found 2900 cycle_result records from May 8-10 already on disk. **No city restart needed for Step 2.** |
+| 3 — cycle duration distribution | 2026-05-12 | Reconciler cycle duration: p10=13s, **p50=27s**, p75=44s, p90=77s, p95=109s, p99=166s, max=244s. Cycles run ~20-30 per hour. Across all 2900: 28,429 `complete` outcomes, only **3 mutations** total, **10 `reconciler.start.execute` operations**. The reconciler spends ~27 seconds median to decide "nothing to change." |
+| 4 — within-cycle waterfall | 2026-05-12 | Every non-trivial cycle has the same shape: cycle_start at +0ms → **GAP** (10–124s) → per-bead session_baseline burst → template_tick_summary burst → cycle_input_snapshot → ~2.5s tail → cycle_result. The variable cost lives entirely in the leading gap. |
+| 5 — locate the gap | 2026-05-12 | Gap = `cr.tick()` body in `cmd/gc/city_runtime.go:610-749` between `beginTraceCycle` at line 624 and the per-bead `RecordSessionBaseline` calls in `beadReconcileTick` at line 1332. Work in that gap: 4x `loadSessionBeadSnapshot()` (dolt reads, lines 618/715/719/735), `loadDemandSnapshot`, 2x `refreshDesiredStateWithSessionBeads`, `syncBeadsAndUpdateIndex` (dolt writes), `reapStaleSessionBeads`, tmux `ListRunning` for pool death detection. |
 
 ### Hypothesis confirmed
 
-- Which storage subsystem is slow:
-- Threshold the detector is using:
-- Evidence:
+- **Which "storage subsystem is slow":** The stderr warning is misleading. The fsync that crosses 25ms is one fsync of a few-KB append to a local JSONL file. APFS fsync under any concurrent dolt fsync load easily exceeds 25ms — so the warning fires frequently but reports nothing actionable about *which* subsystem is slow. The real signal is in cycle `DurationMS`, not the stderr warning.
+- **Threshold the detector is using:** 25 ms total budget covering channel-enqueue + writer goroutine's full `AppendBatch` including final fsync. Channel queue cap 8 batches.
+- **What's actually slow:** The reconciler's pre-`beadReconcileTick` setup — repeated `loadSessionBeadSnapshot` calls + `syncBeadsAndUpdateIndex` writes. p50 ~25s of dolt I/O serialized in the tick body. That dwarfs the 25 ms fsync warning.
+- **Evidence:** 2900 cycle_result records on disk, per-cycle `cycle_offset_ms` field shows the gap is between cycle_start and per-bead session_baseline records every time. Pattern is consistent from p10 (10s gap on a 13s cycle) through max (124s gap on 244s cycle). Code path matches: line 624 calls `beginTraceCycle` (which emits cycle_start at offset 0); lines 618-744 do all the snapshot reloading/refresh/sync work; line 1332 emits the first per-bead `RecordSessionBaseline`.
 
 ### Fix applied (if any)
 
-- Files changed:
-- Verification (trace outcome changes):
+None. This is upstream code in the `gascity-src` submodule; fix would require either a local patch (no `.gc/system/packs/` equivalent for compiled Go) or an upstream PR. Investigation result is "diagnosed and documented" — see section 11 below.
 
 ### Was S3 related to S4?
 
-- Step-2 result:
-- Verdict:
+- **Step-2 result:** Did not need to restart the city; the persisted trace data already proves they're separate signals.
+- **Verdict:** Cleanly decoupled. S3 was `jsonl-archive` pack thrash on a different file path. S4 is the reconciler trace's own fsync, with the underlying disease being the reconciler's seconds-of-dolt-I/O per tick body — fully independent of S3.
 
 ### Surprises
 
-(things this plan got wrong, or new gaps surfaced during the work)
+1. **The trace tool works fully offline.** `gc trace show / cycle / status` all read persisted segments without needing the controller running. That's a much better diagnostic affordance than I expected — Step 2 of the original plan (start city, grep stderr) was unnecessary.
+2. **`slow_storage_degraded` is a misnomer in practice.** It says "storage degraded" but it really means "one fsync >25ms on a small JSONL append" — a tight budget vs. macOS APFS fsync variance under any concurrent write load. The warning name implies a storage problem; the actual cause is more often "your reconciler is competing with dolt for fsyncs."
+3. **The reconciler does 4 `loadSessionBeadSnapshot()` calls per tick.** Lines 618/715/719/735 — each a fresh dolt read. The comments acknowledge this ("Reload snapshot after sync so the reconciler sees metadata written by syncBeadsAndUpdateIndex"). Pessimistic re-read pattern; correct, but expensive.
+4. **27s median cycle to do almost nothing** (3 mutations / 10 starts across 2900 cycles). Steady state is "the city is idle but the reconciler is busy talking to dolt."
+5. **Day-4's `2-9 sec API responses` is consistent with this.** API handlers share the city bead store with the reconciler; 27s reconciler cycles holding bead-store contention naturally translate to multi-second API latency.
 
 ### Anything to promote to v2 manual
 
-(workflow insights worth durable documentation)
+1. **Diagnostic workflow: `gc trace` works offline.** When a reconciler symptom is suspected, `gc trace cycle --tick <id>` + `gc trace show --type cycle_result --since 24h` against persisted segments often diagnoses the issue without restarting the city. Reference: `engdocs/contributors/reconciler-debugging.md` in the gascity-src submodule.
+2. **`slow_storage_degraded` is a fsync-budget warning, not a storage diagnosis.** The interesting field is `duration_ms` on cycle_result records, not the stderr string. Use `gc trace show --type cycle_result --since Nh --json | jq` to triage cycle duration distribution.
+3. **Reconciler cycle anatomy:** every cycle has cycle_start at +0ms, then a gap of N ms doing dolt snapshot/sync I/O, then a burst of per-bead session_baseline records. `cycle_offset_ms` on each record is the waterfall. If the gap dominates, it's pre-reconcile I/O; if the tail (post-template-tick → cycle_result) dominates, it's start_execute/mutation work.
+
+## 11. Follow-up beads / next steps
+
+This investigation is "diagnosed." Whether a fix is in scope is a separate decision. Candidates if we choose to act:
+
+- **Bead (investigation): file `study: reconciler-tick I/O profile, p50=27s for no-op tick`** — capture this notes file's findings + tick_id evidence for an upstream report. Lives in HQ.
+- **Bead (latent): file `reconciler tick repeats loadSessionBeadSnapshot 4x per tick (city_runtime.go:618/715/719/735)`** — potential single-snapshot-with-write-through optimization. Risk: changing reconciler invariants is dangerous; the pessimistic re-read pattern exists for correctness.
+- **Bead (cosmetic): file `slow_storage_degraded stderr message is misleading`** — propose renaming the trace outcome to `trace_flush_budget_exceeded` or augmenting with the actual fsync duration. Low effort if upstreamed.
+- **Optional Step 2-live**: restart the city briefly and confirm post-Day-5 cycle duration hasn't gotten worse. Cheap (~5 min) but unlikely to add new info since Day-5 didn't touch reconciler code paths.

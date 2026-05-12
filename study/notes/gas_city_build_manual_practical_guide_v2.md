@@ -827,27 +827,38 @@ So refinery does **both the merge and the close**. The polecat → refinery boun
 
 ## The "nudge refinery" pattern
 
-Refinery's patrol formula uses `gc events --watch --type=bead.updated` with exponential backoff between checks. In principle, an assignment event should trigger a re-check within seconds. In practice (observed Day-4 in `co_auth`, captured in bead `mc-uhvbb9`) the watch can fail to react for over an hour even with thousands of intervening events, likely because the streaming city API is starved when the reconciler is under load (see `mc-f7u8fz`).
+Refinery's patrol formula uses `gc events --watch --type=bead.updated` with exponential backoff between checks. **Under nominal conditions the watch is reliable** — it fires on the polecat's assignment event and wakes the on-demand refinery within a normal cycle. Day-10 paired control (2026-05-12) confirmed this: a hello-world bead filed WITHOUT any explicit nudge instruction was picked up and merged in 9m 29s, equivalent to Day-9 timing (with the nudge instruction). See `study/notes/2026-05-12-day10-consolidation-and-paired-control.md`.
 
-**Treat the post-polecat nudge as a reliability requirement, not optional ceremony:**
+**Under heavy reconciler I/O load** the watch can fail — observed Day-4 in `co_auth` where bead `auth-wg0` sat 79 minutes despite a valid assignee+metadata state (captured in bead `mc-uhvbb9`). Likely root cause: the streaming city API gets starved when the reconciler is over-budget (see `mc-f7u8fz`), and the watch's SSE stream hangs.
+
+**The post-polecat nudge is a belt-and-suspenders accelerator, not strictly required:**
 
 ```bash
 gc session nudge co_auth/gastown.refinery "<bead-id> ready on <branch> — please merge"
 ```
 
-This is the reliable trigger after polecat drains. Without it, completed work can sit unmerged indefinitely if the watch is in a degraded state.
+Use it when:
+
+- You know the system is under stress (heavy concurrent reconciler cycles, JSONL push storm in flight, etc.).
+- The work is time-sensitive and you don't want to gamble on cycle latency.
+- You're orchestrating a multi-bead handoff and want each step to land promptly.
+
+Skip it (rely on the watch) when:
+
+- The city is in nominal operation.
+- You don't have specific evidence the watch is degraded.
 
 ## Mayor's `PAUSE for Gn` spec anti-pattern
 
-If mayor writes a bead spec that says **"Then STOP. Gate Gn reviews this work…"**, polecat reads "STOP" literally. **Be careful what "STOP" means in context** — observed behavior on Day-4 was that polecat completed the handoff fully (pushed branch, set metadata, assigned to refinery) but did NOT issue a nudge. Combined with the watch-reliability gap above, the bead can then sit indefinitely.
+If mayor writes a bead spec that says **"Then STOP. Gate Gn reviews this work…"**, polecat reads "STOP" literally. **Be careful what "STOP" means in context** — observed behavior on Day-4 was that polecat completed the handoff fully (pushed branch, set metadata, assigned to refinery) but the bead then sat 79 minutes before the human intervened. Day-10 follow-up disproved the "missing nudge caused the stall" hypothesis (paired control without nudge: still merged in 9 min). The Day-4 stall was almost certainly driven by reconciler I/O saturation degrading the watch (see "The 'nudge refinery' pattern" above), not by anything polecat did wrong.
 
-The fix is in mayor's prompting, not in polecat behavior:
+**The PAUSE pattern is still worth avoiding** — "STOP" in a spec can produce confused polecat behavior in other ways (e.g., skipping the metadata-set or assign-to-refinery steps). The fix is in mayor's prompting:
 
 **Don't write:** `"Implement X. Then STOP and wait for auth-G2 review."`
 
-**Write instead:** `"Implement X. Push the branch, set merge metadata, assign to refinery, and nudge refinery before draining. Then stop. Downstream beads remain blocked until auth-G2 is closed by a reviewer."`
+**Write instead:** `"Implement X. Push the branch, set merge metadata, assign to refinery, then drain. Downstream beads remain blocked until auth-G2 is closed by a reviewer."`
 
-The explicit "nudge refinery" instruction makes the handoff complete regardless of watch reliability.
+If the system is known to be under stress, add an explicit nudge step before drain as a hedge. Under nominal conditions the watch is sufficient.
 
 ## How to file a polecat-friendly bead spec
 

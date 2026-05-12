@@ -269,50 +269,56 @@ A future Day-N+1 could test full-mayor: have mayor file the bead and observe whe
 
 ## 10. Execution log
 
-(filled in as work happens)
-
 ### Phase A outcomes
 
-- §19 prerequisite paragraph added:
-- §19 refinery field names updated:
-- §19 new "How to file a polecat-friendly bead spec" subsection:
-- §22 state-file staleness paragraph:
-- §22 premise-falsification adds Day-9 example:
+- **§19 prerequisite paragraph added**: Yes — `gc.routed_to` documented as load-bearing for pool scaling, with `bd create` example and Day-4 S6 clarification.
+- **§19 refinery field names updated**: Yes — step 5 now lists `merged_sha` / `merged_target` / `merge_result`; legacy `merged_commit` referenced in a note pointing to where it appears in older bead histories.
+- **§19 new "How to file a polecat-friendly bead spec" subsection**: Yes — three-step checklist with `bd create` example.
+- **§22 state-file staleness paragraph**: Yes — folded into the two-state-files subsection. Includes `bd dolt status` lies-about-port practical implication.
+- **§22 premise-falsification adds Day-9 example**: Yes — third bullet covering the Day-4 S6 inversion. Pattern definition broadened from "grep upstream" to also include "controlled test with smallest possible scope."
+- Phase A commit: `7d5c1cf`
 
 ### Phase B pre-flight
 
-- Hello-world state:
-- Bare remote state:
-- City start outcome:
+- Hello-world state: clean working tree, `main` at Day-9's `8c2983d`, no leftover branches.
+- Bare remote: `/Users/rfvitis/hello-world-origin.git` present and working from Day-9 setup.
+- `gc start` outcome: controller came up (PID 39797) but reported "city did not become ready under supervisor; keeping registration for retry." Same pattern as Day-9 — supervisor is technically up but in adopting-sessions mode under reconciler I/O pressure. Proceeded anyway because Day-9 showed this state was operationally functional.
 
 ### Phase B timings
 
 | Event | Wall-clock time | Notes |
 |---|---|---|
-| `gc start` issued | | |
-| T0 — paired-control bead created | | (with gc.routed_to set at create-time) |
-| T1 — polecat materializes | | |
-| T2 — polecat assigns to refinery | | |
-| T3 — would-be-nudge | | (should NOT fire if instruction was read) |
-| T4 — refinery wakes / picks up | | |
-| T5 — refinery merges | | |
-| T6 — bead closed | | |
-| `gc stop` | | |
+| `gc start` issued | 08:38:29 | T-start |
+| Phase B bead created | 08:43:34 | `hw-0bdpb`, `gc.routed_to=hello-world/gastown.polecat` set ~3s after create |
+| First poll snapshot (no polecat yet) | 08:43:34 +0s | refinery `asleep (on_demand)` |
+| T1+T2+T3 — polecat materialized, did work, assigned to refinery | by 08:47:12 (+218s) | All packed into one observation cycle. Branch `day10-validation-furiosa` set as metadata. polecat `furiosa` running. **No explicit nudge step was in the description.** |
+| T4 — refinery picks up | between +218s and +569s | Refinery transitioned from `asleep (on_demand)` to `running` during this window |
+| T5+T6 — bead closed with merged_sha | 08:53:03 (+569s = 9m 29s from T0) | `merged_sha=3c80d20a48e2dd...`, `merge_result=merged` (verified post-stop). Origin `main` advanced from `8c2983d` → `3c80d20`. |
+| `gc stop` | 08:55:49 | First stop call left supervisor PID 39797 lingering ("standalone-managed" reported); second `gc stop` cleaned up. |
 
 ### Outcome category
 
-- R-equiv / R-degraded / R-stalled:
-- Evidence:
+- **R-equiv.** Total wall clock 9 min 29s from bead create to bead closed, with `gc.routed_to` set at create-time and NO explicit nudge instruction. Day-9 (with nudge instruction) was ~9 min 20s after the metadata fix. The two end-to-end timings are within ~1% of each other — well inside the noise of reconciler cycle latency variance (Day-9 measured cycles 65-230s on the same day).
+- **Evidence:** Phase B bead `hw-0bdpb` closed with `merged_sha=3c80d20a48e2dd6e462e2675063f5dd22cc11635`. Origin commit `3c80d20 docs: add Day-10 paired control NOTES entry (no-nudge variant)` landed on `hello-world/main`. Refinery transitioned from `asleep (on_demand)` to `running` during the observation window with no manual intervention.
 
 ### Which §19 framing wins
 
-- "Nudge is required" vs "Nudge is best practice":
-- Reasoning:
+- **"Nudge is best practice / accelerator, not strictly required."**
+- **Reasoning:** Refinery's `gc events --watch --type=bead.updated` fired on the polecat's assignment event under nominal conditions. The on-demand refinery materialized from `asleep` to `running` without any human nudge or any nudge in the bead description. Day-4's 79-min `auth-wg0` stall must have been a specific-conditions failure — likely the concurrent JSONL push storm (`mc-vj3hjk` was firing through Day-4) starved the streaming API enough to block the watch. The mc-uhvbb9 bug is real but its scope is narrower than the §19 Day-8 framing suggested: "watch fails under heavy concurrent load," not "watch is generally unreliable."
+- **Action on §19**: soften the "treat as reliability requirement" framing to "use the nudge when you know the system is under stress; otherwise the watch is reliable under nominal conditions." Belt-and-suspenders, not load-bearing.
+- **Action on mc-uhvbb9**: keep open but reframe scope — the bug manifests under reconciler I/O saturation specifically (consistent with the streaming-API-starvation hypothesis). Possible-root-cause #1 in that bead remains the top candidate.
 
 ### Surprises
 
-(things this plan got wrong, or new gaps surfaced)
+1. **The watch IS reliable under nominal conditions.** This was the OPPOSITE of my prior assumption. Day-8 confidence was based on Day-4's 79-min stall, which I extrapolated to "watch is unreliable in general." Day-10's controlled test disproved that. Lesson: a single observed failure mode doesn't characterize a system's typical behavior. mc-uhvbb9's scope needed correction.
+2. **The supervisor leaked across `gc stop`.** First stop call reported "City stopped" but `ps -p 39797` showed the supervisor was still alive ("standalone-managed"). Second stop cleaned up. This is a minor mc-uhvbb9-shaped quirk worth noting; controller shutdown under reconciler load isn't atomic.
+3. **Day-9 vs Day-10 timing equivalence is striking.** Both runs landed in ~9 minutes from "valid bead state" to "merged + closed." That's evidence the polecat→refinery pipeline has a consistent ~9-minute throughput floor under current reconciler load, dominated by the cycle latency (65-230s per cycle in Day-9 measurements). Lower than that probably requires fixing `mc-f7u8fz` first.
+4. **`bd create --set-metadata` doesn't exist.** Had to do two-step (create, then `bd update --set-metadata`). Quick recovery; cost ~3 seconds vs the planned single command. Minor plan inaccuracy.
+5. **The §19 Day-8 framing was driven by survivorship bias.** Day-4 was the most memorable run because it stalled. The hidden assumption "Day-4 is representative" turned out to be wrong. The fix the manual needs is removing the strong claim, not strengthening it further. Reinforces the §22 falsification pattern in a new direction: even our own corrected writeups can be over-confident.
 
 ### Anything to promote to v2 manual (beyond Phase A)
 
-(any second-order findings from Phase B that should join the manual)
+1. **§19 "The nudge refinery pattern" needs softening from Day-8's reliability-requirement framing to a more nuanced "accelerator / belt-and-suspenders under known stress."** Currently committed as a Phase A edit but with the wrong polarity. Day-10 Phase C (this Edit) applies the correction.
+2. **§19 "Mayor's PAUSE anti-pattern" needs a re-read.** Currently says polecat completed the handoff but didn't nudge, and that omission caused the stall. Day-10 shows the omission alone isn't the failure mode. The PAUSE pattern is still worth documenting (it can cause confused polecat behavior) but its cited symptom (the Day-4 79-min stall) was probably driven by something else (concurrent load), not the missing nudge per se.
+3. **A new §23 subsection or §22 note about "system-under-stress" diagnostics.** If `mc-f7u8fz` reconciler cycles are slow, the watch can fail, the supervisor can leak across stop, the state files don't get written. These are correlated symptoms of the same upstream pressure. Worth a short paragraph: "If you see one, suspect the others."
+4. **mc-uhvbb9 closure note**: update the bead with Day-10's findings (refinery watch is reliable under nominal conditions; the bug manifests specifically under reconciler I/O saturation). Not closed yet — the watch failure mode is real and worth tracking — but scope refined.

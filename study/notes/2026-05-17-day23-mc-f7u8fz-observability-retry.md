@@ -2,7 +2,8 @@
 
 - **Plan authored:** 2026-05-13 (evening, after Phase-1 retrospective)
 - **Planned execution:** 2026-05-17
-- **Status:** Plan only
+- **Actual execution:** **PAUSED mid-Step-1** at end of 2026-05-13 (immediately after Phase-1 retrospective). To resume tomorrow.
+- **Status:** Plan + partial Step-1 only. Surprise found: order.failed count is 81, not the 38 Day-22 claimed. Investigation deferred.
 
 Phase-1 retrospective named mc-f7u8fz as the only open thread in our hands. Day-19's measurement attempt was blocked by the bd 1.0.4 regression (couldn't even close mc-2ntb2p, let alone measure reconciler cycles). Day-22 confirmed the city is now in a clean operating regime: 0 failures over 12+ hours, bd 1.0.3 symlink stable, supervisor PID 13654 alive since Day-18.
 
@@ -258,13 +259,33 @@ Skip. mc-f7u8fz is a §22-style falsification investigation; mayor delegation do
 
 (filled in as work happens)
 
-### Step 1: state verify
+### Step 1: state verify (PARTIAL — paused here end of 2026-05-13)
 
-- gc version:
-- Supervisor uptime:
-- New convoys since Day-22:
-- order.failed count delta:
-- mc-f7u8fz state:
+- **gc version:** HEAD-caa44a4 ✓
+- **Supervisor uptime:** PID 13654, 4:39:46 elapsed (since Day-18 gc start)
+- **New convoys since Day-22:** none new (only mc-a0oj6 still open from Day-8)
+- **order.failed count delta:** **+43 failures** since Day-22's claimed baseline. Day-22 said 38 (36 pre-Day-18 + 2 post-pre-symlink); current = **81**. So **43 failures accumulated** between Day-22 evening and Day-23 evening (~24 hours).
+- **mc-f7u8fz state:** OPEN. Title: "session reconciler cycle p50=27s — pre-reconcile dolt I/O dominates tick body". P3 (not P2 as I assumed in the plan).
+
+### Day-22 baseline correction (caught during Day-23 Step 1)
+
+Day-22's "0 order.failed events since 11:08 PT (~12 hours of clean operation)" claim was wrong. Two failures appeared during Day-22 itself that I didn't re-count between sub-tracks:
+
+- `2026-05-13T12:35:26 PT` — `mol-dog-jsonl:rig:hello-world`
+- `2026-05-13T13:13:52 PT` — `mol-dog-jsonl`
+
+Plus the 41 more that have accumulated since 13:13 PT through Day-23 start (PT ~18:30). The pattern looks like **mol-dog-jsonl failing periodically** even with bd 1.0.3 — suggesting either a different bug than the SCRUB_FILTER one (PR #1848 was for SCRUB_FILTER specifically), or the bd 1.0.3 symlink isn't a complete fix.
+
+**To do on Day-23 resume:**
+- Categorize the 43 new failures by subject (likely heavy mol-dog-jsonl skew)
+- Compare to pre-symlink-switch failures: same orders? different orders?
+- Decide: is this a NEW bug (file bead), an ALREADY-KNOWN bug (mc-mxl4vc fallout), or expected (some orders fail under specific conditions)?
+- Then resume Step 2 (arm tracing for mc-f7u8fz measurement) once the failure-baseline question is resolved.
+
+### Surprises
+
+- **Day-22's "0 failures / 12hr baseline" claim was inaccurate.** The Day-22 sweep counted at one moment; failures continued accumulating before I committed. Worth a §22 footnote: "when stamping a baseline, re-count at the moment of final commit, not at the start of the sweep."
+- **mol-dog-jsonl is failing again.** Despite Day-19's bd 1.0.3 symlink fix. Either a separate bug, or the symlink fix is partial. Day-23 resume should resolve.
 
 ### Step 2: arm tracing
 

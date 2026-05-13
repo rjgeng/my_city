@@ -2,7 +2,8 @@
 
 - **Plan authored:** 2026-05-13 (evening, after Day-18 closure)
 - **Planned execution:** 2026-05-14
-- **Status:** Plan only
+- **Actual execution:** 2026-05-13 (continued straight after Day-18)
+- **Status:** EXECUTED. Pivoted: instead of measuring mc-f7u8fz, discovered a NEW regression (bd 1.0.4 + gc HEAD = broken bd writes), found root cause in `cmd/bd/auto_import_upgrade.go`, applied workaround (symlink to bd 1.0.3), filed `mc-mxl4vc`. mc-f7u8fz measurement deferred to a future day (post-upstream-fix).
 
 The §22 retrospective called out mc-f7u8fz as "biggest remaining technical finding on the board." Day-6 diagnosed it (reconciler cycle p50 = 27s for a no-op tick); Day-9 saw it worsen under load (65-230s per cycle). It's been open 12 days. Day-18 upgraded gc binary by 238 commits — **the first question for Day-19 is whether mc-f7u8fz still reproduces.**
 
@@ -250,61 +251,100 @@ If Day-19 turns into Branch C with a structural fix that requires architectural 
 
 ### Pre-flight + housekeeping (Step 1)
 
-- `gc version` output:
-- supervisor alive + uptime:
-- mc-2ntb2p close outcome:
+- **`gc version`:** HEAD-caa44a4 ✓
+- **Supervisor uptime:** PID 13654, 42:44 elapsed at start of Day-19
+- **mc-2ntb2p close outcome:** Failed initially — bd close hung indefinitely. Closed AFTER discovering the bd 1.0.4 regression and switching the symlink to bd 1.0.3.
 
-### Measurements (Step 2)
+### Measurements (Step 2) — pre-upgrade segment only
 
-- Trace segments since upgrade (count):
-- cycle_result records (count):
-- p50 / p95 / max duration_ms for no-op ticks:
-- slow_storage_degraded rate in supervisor logs:
-- Comparison to Day-6 baseline (p50=27s):
+- **Trace segments since upgrade:** 0 (the new supervisor isn't writing trace data).
+- **cycle_result records mined (from pre-upgrade segment 2026/05/13/segment-000001.jsonl):** 47 records.
+- **p50 / p95 / max duration_ms (pre-upgrade, gc 1.1.0, segment from supervisor 30730):**
+  - p50 = 129,129 ms (~129s)
+  - p95 = 237,387 ms (~237s)
+  - max = 442,001 ms (~442s)
+  - min = 61,247 ms (~61s)
+  - **5× worse than Day-6's 27s baseline.** The bug compounded between Day-6 and Day-15.
+- **Post-upgrade measurement:** UNAVAILABLE. HEAD-caa44a4's supervisor isn't writing trace data even after explicit `gc trace start --template gastown.deacon --for 5m` arming. head.json frozen at 16:54:50Z (supervisor 30730's death time). This is itself a Day-19 finding — the trace observability changed in HEAD.
+- **slow_storage_degraded rate:** still firing in dolt log (Day-6's misnamed 25ms fsync warning).
+- **mc-f7u8fz reproducibility status:** UNKNOWN. Cannot measure under HEAD-caa44a4 due to two blockers — trace subsystem change + bd-write regression.
 
-### Branch decision
+### Branch decision — REVISED
 
-- Branch (A: fixed / B: improved / C: persists):
-- Reasoning:
+- **Original branches (A/B/C) all required measurement** which wasn't possible.
+- **Actual outcome:** Day-19 discovered a SEPARATE NEW regression (bd 1.0.4 + gc HEAD-caa44a4 = broken bd writes) that's bigger than mc-f7u8fz in immediate impact. Pivoted to investigating the new regression.
+- **mc-f7u8fz status:** deferred to a future day when measurement is possible again (after upstream fix lands or after a different observability path is found).
 
-### If Branch A or B: lesson note
+### The pivot: bd 1.0.4 regression
 
-- §22 footnote drafted:
-- mc-f7u8fz close reason:
+**Symptom discovered in supervisor.log:** every periodic order dispatch (12 different orders in 45 min) times out with:
 
-### If Branch C: code reading (Step 3)
+```
+bd create: timed out after 2m0s: auto-importing 4619172 bytes from
+/Users/rfvitis/my-city/.beads/issues.jsonl into empty database...
+```
 
-- Reconciler entry point file/line:
-- Hottest section identified:
-- Recent commits (v1.1.0..HEAD) affecting reconciler:
-- Root cause hypothesis:
+**Empirical regression confirmed:**
 
-### If Branch C: PR shape (Step 4)
+```bash
+# bd 1.0.4 hangs:
+bd create "test" -t task --silent    # >2min timeout
 
-- Branch name:
-- `make check` result:
-- PR URL:
-- Reviewer engagement (during the session):
+# bd 1.0.3 works:
+/usr/local/Cellar/beads/1.0.3/bin/bd create "test" -t task --silent    # <20s success
+```
 
-### G1-G6 verdicts
+Both binaries point at the same gc-managed dolt server (port 58545) and same data dir. Only difference is bd version.
 
-- G1 (mc-f7u8fz still reproducible):
-- G2 (same root cause as Day-6):
-- G3 (recent commits don't fix it):
-- G4 (Branch C ships same-day if one-line):
-- G5 (Branch C draft-only if structural):
-- G6 (Branch A: upgrade-as-fix):
+**Root cause:** `cmd/bd/auto_import_upgrade.go` in bd 1.0.4. The function `maybeAutoImportJSONL` fires on every bd write — checks if database is "empty" and if `issues.jsonl` exists, then tries to migrate. Intended as a one-time upgrade helper for users coming from pre-0.56 (`.beads/dolt/`) to 1.0+ (`.beads/embeddeddolt/`). Misfires for this city because the data lives in `.beads/dolt/` (the pre-0.56 path) and bd 1.0.4's default `.beads/embeddeddolt/` is empty — so it thinks migration is needed every time, takes >2 min, never succeeds.
+
+**The exact error string is on line 79 of the file:**
+```go
+fmt.Fprintf(os.Stderr, "auto-importing %d bytes from %s into empty database...\n", info.Size(), jsonlPath)
+```
+
+### Workaround applied
+
+```bash
+ln -sf /usr/local/Cellar/beads/1.0.3/bin/bd /usr/local/bin/bd
+```
+
+The city's supervisor invokes bd via this symlink. After switching, two deferred Day-18 closes succeeded: `mc-2ntb2p` (Day-17 pack-staleness bead) and `mc-l6sq0p` (Day-19 test bead). City's bd-write path restored.
+
+### Bead filed
+
+- **mc-mxl4vc** ("bd 1.0.4 regression: bd create hangs for 2+ min trying to auto-import empty database (works in 1.0.3)")
+- **Priority:** P2
+- **Labels:** bd-regression, upstream-pr-candidate
+- **Status:** OPEN
+- **Next step:** open upstream issue at `gastownhall/beads` first (confirm intent), then PR. Probably Day-20 work.
+
+### G1-G6 verdicts (reframed)
+
+- **G1 (mc-f7u8fz still reproducible):** UNMEASURABLE. Trace subsystem changed; bd writes broken.
+- **G2 (same root cause as Day-6):** N/A — couldn't measure.
+- **G3 (recent commits don't fix it):** N/A — couldn't validate.
+- **G4 (Branch C ships same-day):** N/A — different regression discovered.
+- **G5 (Branch C draft-only):** N/A.
+- **G6 (Branch A: upgrade-as-fix):** STATUS UNKNOWN. The Day-15 pre-upgrade p50 of 129s suggests the bug was real and compounding. Whether HEAD-caa44a4 fixed it is now an open question.
 
 ### v2 manual update
 
-- [ ] §22 footnote on upgrade-as-fix (if Branch A)
-- [ ] §22 update on partial fix (if Branch B)
-- [ ] §24 second worked example (if Branch C ships PR)
+- [x] §22 footnote candidate identified: bd version compatibility with gc HEAD; embed-vs-fs reconciliation pattern extended to bd-as-binary too. Deferring write to Day-20+ to bundle with the upstream PR work.
+- [ ] §24 second worked example: TBD pending upstream PR shape.
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+- **The biggest surprise of Day-19 wasn't mc-f7u8fz.** Day-18's brew upgrade silently bumped bd (a transitive dependency) and bd 1.0.4 introduced a regression that broke every periodic order. The Day-18 victory ("§27 validated, SCRUB_FILTER fixed") was real but partial; the city was actually broken at a different layer.
+- **The pre-upgrade Day-6 baseline (27s) was 5× too optimistic.** By Day-15 the cycle p50 had drifted to 129s. Whatever was driving the slowdown compounded over the 9-day window.
+- **`gc trace status` lies about arms.** It reports `arms: null` while `arms.json` clearly has armed entries (including ones I just registered). Either the CLI doesn't read the file, or the supervisor reports its own in-memory state which differs from disk.
+- **HEAD-caa44a4 doesn't auto-baseline trace.** v1.1.0 had `trace_source: always_on` mode that wrote cycle_result records for every cycle. HEAD requires explicit arming. Even after arming, no new data was written in the 5-min window — suggests deeper change to the trace pipeline.
+- **The "third upstream bug pattern" framing.** PR #2037, PR #1848, and now mc-mxl4vc are all version-migration-related: things that worked before, broke during an upgrade, surfaced under operational stress. Worth a meta-note in §22 about migration as a recurring bug surface.
 
 ### Anything to promote
 
-(filled in after the day)
+- **bd-version-compatibility-with-gc-HEAD** is a v2 manual §22 footnote candidate. Specifically: bd 1.0.4 has an auto-import bug that breaks writes; pin bd to 1.0.3 until upstream fix lands.
+- **Trace subsystem change in HEAD** deserves a separate note — operators relying on `always_on` trace data will lose observability when upgrading to HEAD. Worth filing as an upstream issue separately from the bd regression.
+- **The "third bug pattern" framing** (migration as a recurring source of upgrade-time breakage): worth a §22 footnote noting that 3 of 3 city-discovered bugs were migration-shaped.
+- **The trace `arms: null` inconsistency**: probably a separate small bug in `gc trace status`. Could be a quick PR if the fix is one-line.
+- **Decoupling: the city's resilience strategy** — the workaround (symlink to bd 1.0.3) showed how a 2-line operator fix restored the city after an upgrade-introduced regression. Worth a §22 pattern note: when an upgrade breaks something, the "downgrade ONE component, keep the rest" pattern is often available and effective.

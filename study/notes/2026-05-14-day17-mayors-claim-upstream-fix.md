@@ -2,6 +2,8 @@
 
 - **Plan authored:** 2026-05-13 (evening, after Day-16 closure)
 - **Planned execution:** 2026-05-14 (Day-17)
+- **Actual execution:** 2026-05-13 (evening — pushed straight through after the Day-16 wrap)
+- **Status:** EXECUTED. Case B+ (pack staleness PLUS embed-vs-fs auto-revert) — bigger than expected. Bead `mc-2ntb2p` filed, submodule pointer advanced to upstream main HEAD, v2 manual §27 written as a standalone short section.
 - **Provenance:** Day-16 mayor session reply (mc-wisp-vepr): *"Upstream (study/gascity-src) already carries the fix — submodule pointer bumped to 4819165 in the working tree, so nothing to do there."* But the local pack copy at `.gc/system/packs/maintenance/assets/scripts/jsonl-export.sh:485` STILL had the SCRUB_FILTER bug when mayor fixed it. Both facts can't be true. Day-17 falsifies.
 
 This is a §22-pattern day: take mayor's claim, grep upstream, see which premise is wrong. Three terminal outcomes — one of them is "open a second upstream PR."
@@ -281,53 +283,60 @@ Skip. This is a focused diagnostic + possible PR. Mayor orchestration would add 
 
 ### Pre-flight outcomes
 
-- Local submodule HEAD (`4819165`) — fix present?
-- HQ's recorded pointer (`b3dae6e`) — fix present?
-- Upstream `gastownhall/gascity` main — fix present?
-- Git log lineage of `4819165` (local-only commits? on upstream main?):
+- **Local submodule HEAD (`4819165`) — fix present?** YES (line 485 `WHERE issue_type NOT IN ...`). Git log shows `bd69a607 fix(maintenance): use issue_type column in jsonl-export SCRUB_FILTER (#1848)` in lineage.
+- **HQ's recorded pointer (`b3dae6e`) — fix present?** NO (line 485 `WHERE type NOT IN ...`). `git merge-base --is-ancestor bd69a607 b3dae6e` returned NO.
+- **Upstream `gastownhall/gascity` main — fix present?** YES (line 637 in the refactored file — `WHERE issue_type NOT IN ...`). PR #1848 merged by sjarmak as commit `bd69a607`.
+- **Git log lineage of `4819165` vs upstream main:** `4819165` (the user's PR #2037 commit, `48191657`) is `ahead_by:1, behind_by:130, status:diverged` relative to upstream main (`caa44a40`). Real main HEAD has advanced 130 commits since the user's last branch tip.
 
 ### Case determination
 
-- Case selected (A / B / C):
-- Reasoning:
+- **Case selected: B+ (pack staleness, with a deeper finding underneath).** Upstream has the fix; local submodule has the fix; city's pack copy does not. Investigation went further than Case B's "just refresh the pack manually" — empirical test showed manual refreshes are **automatically reverted** by gc's pack-integrity reconciliation. The reconciliation source is the gc binary's `//go:embed packs/**`. So Case B's classical "pack staleness" doesn't apply — the .gc/system/packs/ directory is not stale relative to its source; it's correctly synced to the BINARY's embed, which itself predates PR #1848.
+- **Reasoning:** Day-17 Step 1 confirmed mayor's claim about #2 (local submodule has fix). Step 2/3 confirmed upstream has fix. Step 4 (originally for pack-refresh investigation) escalated to a `cp -rf` experiment that surfaced the auto-revert pattern. Step 5's PR opportunity is gone (PR #1848 already exists). Final framing: this is **case "B+" = pack-refresh is by-design ephemeral, gc binary embed is the runtime source of truth**.
 
 ### If Case A: PR #2 outcome
 
-- Branch name:
-- `make check` result:
-- PR URL:
-- Reviewer response (if any during the session):
+N/A — sjarmak's PR #1848 beat us to the column-name fix.
 
 ### If Case B/C: bead filed
 
-- Bead ID:
-- Priority:
-- Labels:
-- Next-step plan:
+- **Bead ID:** `mc-2ntb2p` ("Pack staleness + mayor confabulation: city maintenance/ pack drifted from submodule, SCRUB_FILTER bug still active despite mayor's claimed fix").
+- **Priority:** P2
+- **Labels:** config, pack-refresh, mayor-confabulation
+- **Status:** OPEN
+- **Next-step plan:** wait for gc binary upgrade (Homebrew formula bump OR build from source); the SCRUB_FILTER bug will continue firing every 15 min until then. Bead also flags the embed-vs-fs pattern as upstream-issue-worthy if gc maintainers consider it a UX gap.
 
 ### Submodule reconcile
 
-- Approach (bump / reset / leave):
-- Commit hash:
+- **Approach:** fetch upstream main + advance submodule to upstream HEAD (`caa44a40`).
+- **Reasoning:** the working tree at `4819165` was the user's old PR #2037 branch tip, diverged from main by 130 commits. Tracking real upstream main is more idiomatic + gives the submodule a clean reference baseline that includes PR #1848 et al. The submodule is reference-only (per §27 — not a runtime input), so advancing it doesn't break anything in the city.
+- **Commit hash:** included in the Day-17 commit (this one).
 
 ### G1-G5 verdicts
 
-- G1 (`4819165` has the fix):
-- G2 (upstream main does NOT have the fix):
-- G3 (`4819165` includes local-only commits):
-- G4 (Case A PR ships <90 min):
-- G5 (submodule drift is benign — straight bump):
+- **G1 (`4819165` has the fix):** TRUE. mayor's claim was accurate about the local working tree.
+- **G2 (upstream main does NOT have the fix):** FALSE. Upstream DOES have the fix (PR #1848 by sjarmak, commit bd69a607). No PR #2 opportunity for this bug.
+- **G3 (`4819165` includes local-only commits):** TRUE — `48191657` is the user's PR-2037 branch tip, ahead_by:1 vs main (the pre-squash-merge commit).
+- **G4 (Case A PR ships <90 min):** N/A — Case A is out.
+- **G5 (submodule drift is benign — straight bump):** TRUE for the submodule reconcile, but the larger finding is that submodule advancement doesn't help the city's runtime. The drift was benign because the submodule is reference-only.
 
 ### v2 manual update
 
-- [ ] §24 worked example #2 (if Case A)
-- [ ] §22 footnote on pack-staleness (if Case B/C)
-- [ ] §27 candidate on pack-refresh internals (if Case C)
+- [ ] §24 worked example #2 (N/A — Case A didn't apply)
+- [ ] §22 footnote on pack-staleness (folded into §27 instead)
+- [x] **§27 written: "Pack content in the gc binary: embed vs filesystem reconciliation"** (~50 lines). Establishes the embed-vs-fs mental model, the diagnostic procedure, and when the pattern fires vs not.
+- [x] §26 revised: mayor's Day-16 "fix" reframed from "confabulation" to "true-at-the-moment fact that was about to become false." More precise.
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+- **The PR #2 opportunity was already taken by sjarmak (PR #1848).** Day-17's predicted G2 (upstream doesn't have the fix) was wrong. The actual finding was deeper and more interesting than another one-line PR would have been.
+- **`gc import upgrade` doesn't work on path imports.** `gc import upgrade gastown` returned "import 'gastown' is a path import and cannot be upgraded." The path-import mechanism is unidirectional — the city installs once, then auto-reverts from binary embed. No constraint-based refresh exists.
+- **Manual `cp -rf` lasts ~3 minutes.** The empirical test fully nailed down the auto-revert mechanism. After cp: FIX in place, file size 24553. After `gc order run`: BUG back, file size 24167. Same mtime preserved (which initially made it look like the file wasn't touched, but the size diff is conclusive).
+- **gc binary 1.1.0 was installed `May 7 22:31`** (city init day). The binary's embed dates from before PR #1848 (which merged "months ago" per upstream history). All maintenance-pack fixes that merged in those 130 commits are inaccessible to this city until the gc binary is upgraded.
+- **The submodule's `4819165` is the user's own PR #2037 branch tip.** Originally was at `b3dae6e` (HQ's recorded pointer) at city-init; got advanced to `4819165` during PR #2037 work. The submodule has been on a personal fix-branch the entire time. Real upstream main has moved 130 commits past it.
 
 ### Anything to promote
 
-(filled in after the day)
+- **§22 sub-pattern "Step 1.5b — falsify the FIX's premises":** now has a third worked example. Day-14 surfaced the pattern; Day-15 paid off; Day-17 extended it from "verify the fix doesn't have side effects" to "verify the fix actually reaches the runtime." The retrospective's call to promote this to permanent §22 tooling becomes more urgent.
+- **The retrospective's "events.jsonl is an underused observability surface"** got another data point — Day-17's diagnostic relied heavily on cross-referencing events.jsonl (DOG_DONE messages) with dolt-server.log (SQL errors). Both surfaces were needed; neither alone tells the story.
+- **Pack-binary-version-drift as an upstream discussion candidate.** Whether gc should auto-detect or surface "your installed binary embeds an old pack version" is a real ergonomic question. Could be the next upstream contribution (discussion or feature request, not a fix PR).
+- **The "mayor's fact was true at the moment" framing.** Worth promoting from §26 into a general note about agent reporting reliability: an agent's report is a *snapshot*, not a guarantee of persistence. For pack-managed code paths, the snapshot can become false within minutes. Future Days investigating agent autonomy should bake this in.

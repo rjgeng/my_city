@@ -1480,3 +1480,48 @@ This means **decisions about when to "use v2" are not user-facing.** The user do
 Day-16's three-minute mayor incident response is a small but clean worked example of the **"Dispatch Liberally, Fix When Fast"** doctrine from mayor's prompt template. Mayor explicitly chose not to dispatch (which would have produced beads, polecat sessions, observability) because the fix was a single-line edit on code already loaded in mayor's context. The decision was correct in retrospect — total wall-clock to green was ~3 minutes vs an estimated 20-30 for a dispatch-style fix. But the trade-off is that **the audit trail is thinner**: no polecat session means no transcript of the diagnosis (mayor did it inline); no PR means the fix is local-only and ephemeral. For fixes that need durability or audit, "dispatch liberally" remains correct. This is captured but worth stating: the §17 lesson is real, the choice is contextual.
 
 The §22 sub-pattern Day-14/15 surfaced ("falsify the FIX's premises, not just the bug's") still applies — but for a 3-minute single-line fix, the falsification budget is right-sized at "ran the script once after the edit." Mayor did that. The pattern scales with blast radius; it doesn't always need the full Day-14-style investigation.
+
+**Day-17 revision to the mayor framing above.** Day-17's investigation (see §27) revealed that mayor's "exported 5/5, push: ok" report on Day-16 was **true at the moment it ran, then auto-reverted by the next order dispatch**. The bug came back within ~4 minutes when the deacon's next periodic fire of mol-dog-jsonl triggered gc's pack-integrity reconciliation, which overwrote mayor's edit with the embedded (pre-PR-#1848) pack content. Mayor's only mistake was assuming persistence. This is not confabulation; it is a real reliability finding about the runtime layer that the prompt-driven coordinator (mayor) doesn't know about. For Day-16's "Dispatch Liberally, Fix When Fast" doctrine, this adds: **when mayor edits files in `.gc/system/packs/`, the edit is ephemeral unless propagated through the gc binary's embed.** Dispatch-style fixes (PR to upstream) survive; in-place fixes don't.
+
+# 27. Pack content in the gc binary: embed vs filesystem reconciliation
+
+Day-17 (2026-05-13 evening) surfaced a load-bearing mental model that wasn't on the user's radar before: **the live runtime pack content lives inside the gc binary, not on disk.** The `.gc/system/packs/` directory looks like the authoritative installation but is actually a cache materialized from the binary's `//go:embed packs/**` directive. Modifications to that directory are reverted to embed content on the next order dispatch.
+
+## What's going on
+
+`internal/bootstrap/bootstrap.go` in gascity-src has:
+
+```go
+//go:embed packs/**
+var embeddedBootstrapPacks embed.FS
+```
+
+`materializeBootstrapPack` (~line 187) reads from this `embed.FS` and atomically renames the materialized content into a cache dir. `EnsureBootstrap` is the public entry point. **The submodule at `study/gascity-src` is a *reference* copy** — useful for reading the source-of-truth pack code, but never the runtime source.
+
+At order-dispatch time, `gc order run <name>` triggers a pack-integrity check that re-materializes `.gc/system/packs/<pack>/` from embed. The check is silent on disk (no log line announcing "reverting pack"). Empirical test (Day-17):
+
+1. `cp -rf <submodule>/maintenance/* <city>/.gc/system/packs/maintenance/` — file size 24167 → 24553, FIX in place.
+2. `gc order run mol-dog-jsonl` — file size reverts to 24167, BUG back at line 485.
+3. Dolt server log emits `column "type" could not be found in any table in scope` during the dispatch — the buggy pack actually ran.
+
+## The implications
+
+- **The submodule is reference-only.** Bumping its pointer doesn't update the city's runtime. PR #1848 (which fixed the SCRUB_FILTER column-name bug upstream months ago) is invisible to a city running gc 1.1.0 because the binary embeds pre-PR-#1848 packs.
+- **In-place edits in `.gc/system/packs/` are by-design ephemeral.** They survive until the next order dispatch. Mayor's Day-16 fix was real at execution time but lasted ~4 minutes before reverting.
+- **The only persistent fix is a gc binary rebuild.** Either upgrade the Homebrew formula (`gascity@1.1.0` → newer), or `make build` from current upstream source and replace `/usr/local/bin/gc`. Either way, the new binary embeds current pack content.
+- **Pack-level upstream PRs benefit the maintainer's CI but not running installs.** PR #1848 fixed the bug in source. The fix only reaches users when a new gc release is built and installed. Cities running the old binary stay broken indefinitely.
+
+## How to diagnose this pattern when it bites you
+
+If a pack-script bug "should be fixed" upstream but is still happening in your city, the §22 falsification step needs a layer:
+
+1. **Falsify the *bug's* premise.** Grep the submodule for the bug. If the fix is upstream → continue.
+2. **Falsify the *fix's* propagation.** Check `.gc/system/packs/.../<file>` content. If the BUG version is on disk → the embed is the source of truth, not the filesystem.
+3. **If you have time, prove auto-revert is happening:** apply a manual fix via `cp` or `sed`, immediately verify the file content, run `gc order run <name>` or wait for a periodic dispatch, then re-check the file. A reverted file is the smoking gun.
+4. **If auto-revert is confirmed:** the only path forward is upgrading the gc binary OR opening an upstream discussion about whether pack-level fixes should propagate to installed binaries somehow.
+
+## When this pattern WON'T fire
+
+The auto-revert is for `.gc/system/packs/` only. Pack-shipped scripts that the city has copied OUT of `.gc/system/packs/` into a writable location (e.g., the agents' working directories under `.gc/agents/`) are safe to edit — they're not reconciliation targets. Same for hand-written orders or formulas the user adds directly to `city.toml` — those live in `city.toml` and aren't touched.
+
+The asymmetry: **shipped packs are gc-managed (immutable); user-added orchestration is user-managed (mutable)**. The boundary is the `.gc/system/packs/` directory.

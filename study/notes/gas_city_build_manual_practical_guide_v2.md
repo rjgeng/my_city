@@ -1069,7 +1069,7 @@ This single shape rule lets you classify a slow cycle in one look at its waterfa
 
 # 24. Upstreaming a Gas City fix: the contributor playbook
 
-When you find a real bug in `study/gascity-src/` and want it merged upstream, this is the workflow. First written after PR #2037 (2026-05-12, `fix(packs): fallback to dolt-provider-state.json`) — the first contribution from this city — but generalized for any future fix.
+When you find a real bug in `study/gascity-src/` and want it merged upstream, this is the workflow. First written after PR #2037 (opened 2026-05-12, `fix(packs): fallback to dolt-provider-state.json`, **merged 2026-05-13** by maintainer sjarmak, merge commit `e1cee04`) — the first contribution from this city to land upstream — but generalized for any future fix.
 
 The whole thing is ~30 minutes wall-clock if Go is already installed and you're comfortable with `gh` CLI. Add ~5 min if Go isn't installed yet.
 
@@ -1167,7 +1167,7 @@ After `gh pr create`:
 
 ## Anatomy of PR #2037 (the worked example)
 
-Commit `48191657` on branch `rjgeng/fix/dolt-pack-script-state-fallback`. 21 lines across two shell scripts. Surfaced via the Day-5 JSONL push storm; diagnosed in `study/notes/2026-05-12-mc-ma23a9-dolt-state-filename-fix.md`; PR opened at <https://github.com/gastownhall/gascity/pull/2037>. The whole journey took 10 days of background work plus ~90 minutes of focused contributor-workflow execution on Day-11.
+Commit `48191657` on branch `rjgeng/fix/dolt-pack-script-state-fallback`. 21 lines across two shell scripts. Surfaced via the Day-5 JSONL push storm; diagnosed in `study/notes/2026-05-12-mc-ma23a9-dolt-state-filename-fix.md`; PR opened at <https://github.com/gastownhall/gascity/pull/2037>. **Merged 2026-05-13T01:46Z** by maintainer sjarmak as commit `e1cee04`, with no review iterations requested — the honesty-first PR body and clean `make check` passage carried it through on the first pass. The whole journey took 10 days of background work, ~90 minutes of focused contributor-workflow execution on Day-11, and ~32 hours of post-submit wait time.
 
 ## The issue-filing variant: when not to file an issue
 

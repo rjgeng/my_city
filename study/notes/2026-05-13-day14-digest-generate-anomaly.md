@@ -274,6 +274,10 @@ If the Day-14 investigation reveals that the fix has broad implications (e.g., f
 
 (filled in as work happens)
 
+### Adjacent: PR #2037 daily-check closed
+
+PR #2037 (`fix(packs): fallback to dolt-provider-state.json`) **merged 2026-05-13T01:46:12Z** by maintainer sjarmak as commit `e1cee04`. No review iterations requested; clean first-pass merge. This closes the Day-11 §4 Step 3 daily-check obligation — no more polling needed. v2 manual §24 updated inline (opening paragraph + Anatomy subsection) with the merge outcome. The full retrospective on what carried the PR through (honesty-first body, clean `make check`, complementary-evidence framing in §24's issue-filing variant) stays in §24 itself rather than getting duplicated here.
+
 ### Pre-flight outcomes
 
 - Formula TOML contents (Step 1):

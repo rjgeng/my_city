@@ -2,7 +2,8 @@
 
 - **Plan authored:** 2026-05-13 (evening, after Day-20 closure)
 - **Planned execution:** 2026-05-15
-- **Status:** Plan only
+- **Actual execution:** 2026-05-13 (continued same evening as Day-20; the convoys tour took ~45 min, faster than planned)
+- **Status:** EXECUTED. §29 written (~120 lines); §20 stamped as historical with pointer to §29. Two big hypotheses falsified (G2 and G5 — convoys ARE NOT workflows; they're distinct primitives).
 
 The retrospective's most-deferred item. Mentioned in 2026-05-08 (stop 3 sidebar), Day-4 (`mc-wjos2g` workaround), Day-13 (offered as alternative, deferred), Day-13 plan §8 (deferred again), Day-13 wrap (deferred to Day-15+), Day-17 plan §7 (Day-19+ candidate), Day-18 plan §7 (Day-20+ candidate), Day-19 plan §7 (Day-21+ candidate), Day-20 plan §7 (Day-21+ candidate). **Eight explicit deferrals over 7 days.** Day-21 is when this lands.
 
@@ -300,62 +301,76 @@ That said: §29 might end up SUGGESTING that mayor handoff is the right way to U
 
 ### Step 1: existing convoys
 
-- `gc convoy list` count + sample:
-- mc-wjos2g detail status:
-- Children visible via label query:
+- **`gc convoy list` count + sample:** 1 OPEN convoy (`mc-a0oj6` — "sling-mc-n333b", 0/1 closed). `gc convoy list` only shows OPEN convoys; no `--state all` flag exists.
+- **mc-wjos2g detail status:** CLOSED. Day-4 convoy, "Next.js 16 auth demo", `type:convoy`, closed 2026-05-10. Children weren't directly shown in `bd show` (because parent edges presumably broke during cross-rig dispatch — they're tagged via labels per §20 workaround).
+- **Total `type:convoy` beads in store:** 3 (mc-a0oj6 OPEN, mc-wjos2g CLOSED, mc-xlg5wt CLOSED "auth-rig-test-convoy" — appears to be a Day-4 era cross-rig test bed).
+- **Children visible via `CHILDREN` section in `bd show`:** YES for in-rig convoys (mc-a0oj6 shows mc-n333b as child). NOT shown for cross-rig (the parent-edge gap from §20).
 
 ### Step 2: convoy code recon
 
-- Files in cmd/gc/cmd_convoy*.go:
-- Internal package location:
-- Recent commits (v1.1.0..HEAD) affecting convoys:
+- **Files in cmd/gc/cmd_convoy*.go:** `cmd_convoy.go`, `cmd_convoy_dispatch.go` (+ their _test.go siblings). Two source files only.
+- **Internal package location:** `internal/convoy/` (confirmed via AGENTS.md line 118: "object model at the center: `internal/{beads, mail, convoy, formula, events, session, worker, sling, ...}`").
+- **Recent commits (v1.1.0..HEAD) affecting convoys:** 7 commits found via `--grep="convoy"`. All minor: close_reason validation fixes (#1644, #1680, #1821, #1822, #1862), provider-lifecycle cleanup (#1715), and a witness-patrol clarification (#1922). **NOTHING about cross-rig parent edges.** G3 was predicted-strong before the test; commits confirm it.
 
 ### Step 3: simple convoy worked example
 
-- Convoy created:
-- Three child beads:
-- `gc convoy status` output after creation:
-- After children closed:
-- `gc convoy land` outcome:
+- **Convoy created:** `mc-h3b7g5` ("day21-tour-convoy") via `gc convoy create "day21-tour-convoy" mc-xa2kr5 mc-bh6ejp mc-o98rvl`. Output: "Created convoy mc-h3b7g5 ... tracking 3 issue(s)".
+- **Three child beads:** mc-xa2kr5 (day21-tour-A), mc-bh6ejp (day21-tour-B), mc-o98rvl (day21-tour-C). All `type:task`.
+- **`gc convoy status` output after creation:** clean tabular layout — "Convoy: mc-h3b7g5 / Title: ... / Status: open / Progress: 0/3 closed", then a child-bead table (ID, TITLE, STATUS, ASSIGNEE).
+- **After children closed (all 3 via `bd close --reason`):** Progress went 0/3 → 3/3 closed. **But the convoy itself stayed OPEN** — no auto-close fired on the immediate cadence. Probably needs `gc convoy check` or a sweep order cycle.
+- **`gc convoy land` outcome:** not attempted (would close the convoy; left it for the auto-sweep to demonstrate that path). Probably fires on the next `order-tracking-sweep` periodic order cycle.
 
 ### Step 4: cross-rig parent gap test
 
-- HQ convoy bead:
-- Rig child bead:
-- `gc convoy add` outcome:
-- **Outcome bucket:** A (still fails) / B (succeeds) / C (different error):
-- Reasoning:
+- **HQ convoy bead:** mc-cw4txp ("day21-cross-rig-test", `type:convoy`).
+- **Rig child bead:** cs-klddp ("day21-rig-child", created via `cd ~/co_store && bd create ...`).
+- **`gc convoy add` outcome:** **`gc convoy add: getting bead "cs-klddp": bead not found`**.
+- **Outcome bucket:** **A (still fails).** Same outcome §20 documented under gc 1.1.0; slightly different error wording (Day-4 original: parent-edge failure; Day-21: "bead not found"). The root cause is unchanged — `gc convoy add` only reads the HQ bd store; cross-rig beads live in rig-local bd stores and aren't accessible.
+- **Reasoning:** §20 holds. The label-based soft-link workaround remains the correct pattern. §29 absorbs §20's content as a sub-section; §20 becomes a historical pointer.
+- **Cleanup:** both test beads closed cleanly.
 
 ### Step 5: complex convoy observation
 
-- Example workflow root (cs-tc6zhp or mc-1r8kbz):
-- `gc convoy status` output:
-- DAG visible? (G4):
-- Control-dispatcher role visible?
+- **Example workflow root (chose mc-1r8kbz — Day-15's city-scope digest-generate root):** has `gc.kind=workflow` + `gc.formula_contract=graph.v2` + `gc.outcome=pass` + `gc.routed_to=gastown.dog`. Type is `task`, NOT `convoy`.
+- **`gc convoy status mc-1r8kbz` output:** **"bead mc-1r8kbz is not a convoy"** — explicit error. Workflow roots are NOT accessible via `gc convoy *` commands.
+- **DAG visible? (G4):** **N/A — G4 is moot.** Since `gc convoy status` doesn't operate on workflow roots, the DAG visibility question doesn't apply at the convoy layer. The DAG IS visible via `bd show mc-1r8kbz` (which shows the children + their depends_on edges in the JSON output), but that's the data layer, not the operator UI.
+- **Control-dispatcher role visible?** Indirectly — the dispatcher's job is to fire `gc.kind=workflow-finalize` and other control beads as workflows progress. From the convoy view, dispatcher work is invisible because convoys and workflows are different primitives.
 
 ### Step 6: terminology cross-check
 
-- AGENTS.md convoy/workflow notes:
-- Operator vs internal naming alignment:
+- **AGENTS.md convoy/workflow notes:**
+  - Line 52: "Everything is a bead: tasks, mail, molecules, convoys." — convoys listed alongside other bead types.
+  - Line 71: "create molecule → hook to agent → nudge → create convoy → log event." — convoy is a dispatch step (for the sling subsystem).
+  - Line 118: "object model at the center: `internal/{beads, mail, convoy, formula, events, session, worker, sling, ...}`" — convoy is its own internal package, parallel to sling/formula.
+  - Line 4: "multi-agent coding workflows" — "workflow" in the marketing sense (different from `gc.kind=workflow`).
+- **Operator vs internal naming alignment:** "convoy" is the user-curated grouping; "workflow" is the formula-compiled DAG; both can be called "graphs of related work" loosely, but they're distinct primitives with distinct bead types, distinct lifecycles, distinct management commands. **The misleading bit is `gc convoy control` — that command serves the workflow control-dispatcher, not user convoys. Naming overlap is upstream-clarification-worthy.**
 
 ### G1-G6 verdicts
 
-- G1 (open convoys exist): 
-- G2 (simple + complex coexist):
-- G3 (cross-rig gap still real):
-- G4 (complex shows DAG):
-- G5 (convoy = workflow alias):
-- G6 (§20 update is small):
+- **G1 (open convoys exist):** TRUE. 1 open (`mc-a0oj6`), 2 closed (mc-wjos2g, mc-xlg5wt). The "8 deferrals" framing led me to expect more.
+- **G2 (simple + complex coexist):** **FALSIFIED.** There are no "complex convoys" as a `type:convoy` thing — what I was imagining (formula-compiled DAGs) are workflows (`type:task` + `gc.kind=workflow`). Two distinct primitives, not two flavors of one.
+- **G3 (cross-rig gap still real):** **TRUE.** Confirmed in Step 4. Error wording shifted slightly (more cleanly explanatory now: "bead not found" vs the old parent-edge-creation failure), but the gap is unchanged. §20 stamped, §29 absorbs.
+- **G4 (complex shows DAG via gc convoy status):** **N/A.** `gc convoy status` doesn't operate on workflow roots at all. The DAG is visible via bd JSON output, not via the convoy command.
+- **G5 (convoy = workflow alias):** **FALSIFIED.** They're distinct primitives. The `gc convoy --help` text's "complex convoys use formula-compiled DAGs with control beads" framing is misleading — that text refers to the dispatcher's INTERNAL use of convoy-shaped state, not to user-managed type=convoy beads.
+- **G6 (§20 update is small):** **TRUE.** §20 became a 3-line stamp + pointer to §29. The big work was §29 itself (~120 lines) — which the plan anticipated.
 
 ### Manual updates
 
-- [ ] §29 drafted (~80-120 lines)
-- [ ] §20 updated (stamp or rewrite)
+- [x] §29 drafted (~120 lines, includes the side-by-side table, operator workflow, cross-rig gap, lifecycle nuances, use case, control-dispatcher relationship, connection to §25/§26)
+- [x] §20 updated (stamped as historical; pointed at §29 for current reference)
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+- **The biggest surprise was G2 + G5 BOTH falsifying.** I came in expecting convoy and workflow to be the same thing with two names (operator vs internal). They're distinct primitives at every layer — different bead types, different commands, different internal packages, different lifecycles. The Day-21 plan's mental model was off by one dimension; §29 had to be bigger and more disambiguation-focused than planned.
+- **Auto-close doesn't fire instantly.** Closed 3/3 children → convoy stays open. Either it's intentional (waiting for explicit `gc convoy land`) or sweep-cadence-dependent (waiting for next `order-tracking-sweep`). Worth a §29 note (added).
+- **`gc convoy --help` is slightly misleading.** It says "complex convoys use formula-compiled DAGs with control beads for orchestration" — but there's no actual `gc convoy` command that operates on workflow roots. The naming overlap with `gc convoy control` (the workflow control-dispatcher's command) is a minor upstream documentation gap.
+- **Tour shape held.** Day-21 was supposed to be exploration not fix; it stayed that way. Two ~10-min test beads created and cleaned up; no new beads filed; no PR work. Clean tour-day cadence.
+- **The whole tour took ~45 min, not the planned 90 min.** The findings were sharp and the data was abundant; once the convoy-vs-workflow disambiguation landed, the writeup wrote itself. Step 5's "N/A" outcome cut Step 5 + Step 6 short.
 
 ### Anything to promote
 
-(filled in after the day)
+- **`gc convoy --help` text clarification** — the "complex convoys use formula-compiled DAGs with control beads" sentence is confusing because there's no user-facing `gc convoy` command for graph.v2 workflows. Could be a tiny upstream PR to gascity's help-text.
+- **The convoy-vs-workflow disambiguation table** — promoted to §29 as the lead artifact. Worth referencing from §25 and §26 going forward.
+- **Auto-close cadence** — worth a separate diagnostic day to understand exactly when convoys auto-close (sweep-cadence vs explicit-land vs all-children-closed). Could be a Day-22 mini-investigation.
+- **The "tour-day cadence" pattern** — Day-21 was the first deliberate exploration day after a long fix stretch. Producing §29 in 45 min validated the format. Worth a §22 footnote that "tour days produce manual sections; fix days produce beads/PRs."
+- **`type:convoy` is a load-bearing identifier.** §29 named it explicitly. Worth a §22 lesson: when reading agent prompts that say "create convoy," they specifically mean `type:convoy` beads, NOT the workflow primitive. Mayor's "convoy creation" decomposition (Day-4) is `type:convoy`; deacon's "workflow dispatch" is something else.

@@ -878,9 +878,13 @@ When mayor files beads, mayor handles all of this for you (mayor's prompt has th
 
 ---
 
-# 20. Cross-Rig Convoy Gap
+# 20. Cross-Rig Convoy Gap (historical; see §29 for current reference)
 
-Convoys filed in HQ (`mc-*` prefix) cannot directly parent beads from different rigs (e.g., `auth-1` and `cs-3` can't both be children of `mc-X`). `gc convoy add` fails the parent-edge creation between HQ and a rig-prefixed bead.
+**Status as of 2026-05-13 (Day-21):** still real, slightly different error wording. See §29's "Cross-rig convoy gap" sub-section for the full current treatment + the broader convoy-vs-workflow disambiguation. This §20 stays in the manual as historical context for the original Day-4 finding.
+
+---
+
+Convoys filed in HQ (`mc-*` prefix) cannot directly parent beads from different rigs (e.g., `auth-1` and `cs-3` can't both be children of `mc-X`). `gc convoy add` fails the parent-edge creation between HQ and a rig-prefixed bead (Day-4 original error: parent-edge failure; Day-21 retest under HEAD-caa44a4: `bead not found`).
 
 **Workaround** (codified in memory `project_cross_rig_convoy.md`): use a label-based soft-link. Tag each rig-local child bead with `convoy:mc-XXX`:
 
@@ -1551,3 +1555,119 @@ Cities running for any length of time accumulate version-skew naturally — pack
 **Sub-pattern: "downgrade ONE component" for in-place recovery.** When an upgrade introduces a regression, the productive operator move is often to revert *just* the broken component (e.g. symlink bd to 1.0.3) rather than full rollback. Keeps the gains from the upgrade, restores function from the regression. Cheap, reversible, doesn't lose data.
 
 **Sub-pattern: when the fix is merged-but-unreleased, +1 the release issue.** Day-20 found that PR #3691 (the fix) was merged but bd 1.0.4 was released earlier. The bottleneck wasn't writing code; it was maintainer attention to release-cutting. Comments on a release issue (#3870) accumulate priority. Worth a §24 footnote: "before opening a new PR, check whether the fix already exists and the bottleneck is just release timing."
+
+# 29. Convoys: the tour (with the convoy-vs-workflow disambiguation)
+
+Day-21 (2026-05-13, 8 deferrals overdue) was the focused convoys tour. The single most-load-bearing finding: **convoys and workflows are NOT the same thing**, despite both being "graphs of related work." They're distinct user-facing primitives with different bead types, different management commands, and different lifecycles. This section disambiguates them, then walks through the convoy mechanism specifically.
+
+## The two primitives, side by side
+
+| Aspect | **Convoy** | **Workflow** |
+|---|---|---|
+| Bead type | `type:convoy` | `type:task` |
+| Identifying metadata | (parent-child edges to children) | `gc.kind=workflow` + `gc.formula_contract=graph.v2` |
+| How it's created | `gc convoy create <name> [issues...]` (user-initiated) | Auto, when a v2-contract formula dispatches |
+| Children | regular beads (`type:task`) with parent-edge to convoy | DAG of step beads with `depends_on` + workflow-finalize control bead |
+| Operator commands | `gc convoy create/add/status/list/land/check/close/delete` | none direct — observed through bd queries on the root bead's metadata |
+| Verifiable via | `gc convoy status <id>` succeeds | `gc convoy status <id>` returns "bead X is not a convoy" |
+| Internal package | `internal/convoy/` | `internal/sourceworkflow/` + sling layer |
+| Typical lifecycle | user creates → tracks children → manually lands | deacon dispatches → control-dispatcher orchestrates → auto-completes |
+
+Both look like "graphs of related work" from a distance, but the cleanest mental model is: **convoys are user-curated groupings; workflows are formula-compiled DAGs.** They never collide because the bead-type field disambiguates.
+
+The `gc convoy --help` opening sentence ("Manage convoys — graphs of related work beads. ... Complex convoys use formula-compiled DAGs with control beads for orchestration") slightly misleads here — there's no `gc convoy` command that operates on workflow roots. The "complex convoy" framing in help text refers to the dispatcher's internal use of convoy-shaped state, not to user-managed convoy beads with graph-v2 contracts.
+
+## Convoy operator workflow
+
+Simple, single-rig case (the well-trodden path):
+
+```bash
+# Create child beads first (or use existing ones)
+A=$(bd create "task-A" -t task --silent)
+B=$(bd create "task-B" -t task --silent)
+C=$(bd create "task-C" -t task --silent)
+
+# Create the convoy tracking these children
+gc convoy create "feature-X-rollout" "$A" "$B" "$C"
+# → "Created convoy mc-h3b7g5 ... tracking 3 issue(s)"
+
+# Observe progress
+gc convoy status mc-h3b7g5
+# → Convoy: mc-h3b7g5 / Title: feature-X-rollout / Status: open / Progress: 0/3 closed
+# Plus the children listed with their statuses.
+
+# As children close (by humans or agents), progress updates.
+bd close "$A" --reason "..."
+gc convoy status mc-h3b7g5
+# → Progress: 1/3 closed
+
+# When all children done:
+gc convoy land mc-h3b7g5    # terminates + cleanup
+```
+
+**`gc convoy create` flags worth knowing:**
+
+- `--owner <agent>` — names the convoy's owner agent (defaults to none).
+- `--target <branch>` — children inherit this as their target branch (useful for multi-bead PR sequences).
+- `--owned` — manual lifecycle, no auto-close. Use when you want the convoy to stay open even after all children close.
+- `--merge {direct|mr|local}` — merge strategy for any code work in children.
+- `--notify <agent>` — who gets a message when the convoy completes.
+
+**Auto-close behavior:** by default, a convoy auto-closes when all children close. With `--owned`, it stays open until `gc convoy land` or explicit `gc convoy close`. The `gc convoy check` command can be run periodically to sweep eligible auto-closes (the city already has an `order-tracking-sweep` order that does this).
+
+## Cross-rig convoy gap (still real as of 2026-05-13)
+
+§20 documented this under gc 1.1.0; Day-21 re-tested under HEAD-caa44a4 + formula_v2 = true. The gap persists:
+
+```bash
+HQ_CONVOY=$(bd create "test" -t convoy --silent)
+# In a rig:
+RIG_BEAD=$(cd ~/co_store && bd create "rig-child" -t task --silent)
+# Back in HQ, attempt to link:
+gc convoy add "$HQ_CONVOY" "$RIG_BEAD"
+# → gc convoy add: getting bead "cs-klddp": bead not found
+```
+
+The error wording changed slightly (was "parent-edge creation failed"; now "bead not found"), but the root cause is the same: `gc convoy add` only reads the HQ bd store, and rig-prefixed beads live in their respective rig stores. Cross-rig parent-child relationships aren't supported in the bd data model.
+
+**Workaround** (codified in `memory/project_cross_rig_convoy.md`): use the label-based soft-link pattern. Tag each rig-local child bead with `convoy:mc-XXX`:
+
+```bash
+gc bd label add auth-1 convoy:mc-wjos2g    # within the auth rig
+gc bd label add cs-3   convoy:mc-wjos2g    # within the cs rig
+```
+
+The convoy bead lives in HQ; the children stay in their respective rig stores. `gc convoy land` works fine on the HQ convoy despite the parent gap — the land operation doesn't require parent edges, only the convoy bead's own readiness. Use the label pattern until first-class cross-rig convoys ship.
+
+This replaces §20 as the primary reference for the gap. §20 remains in the manual as historical context; readers should come to §29 for current behavior.
+
+## Lifecycle nuances observed Day-21
+
+- **Auto-close doesn't fire instantly** even when all children close. The convoy stays OPEN until a sweep cycle (or manual `gc convoy check`) advances it. Don't read "still open" as "still has work" — check `Progress: N/N closed` instead.
+- **`type:convoy` beads can be closed directly via `bd close`** without using any `gc convoy` command. They're regular beads with a structural type marker. The `gc convoy *` commands are a convenience layer over the same store.
+- **The CHILDREN section of `bd show <convoy>`** is the canonical way to see what's tracked. `gc convoy status` is the operator-facing view; `bd show` is the data-layer view. Both show the same underlying parent-child edges.
+
+## What convoys are FOR (the use case)
+
+The clearest fit: **multi-bead coordination by humans or coordinator agents.** Examples from this city:
+
+- `mc-wjos2g` (Day-4): mayor's "Next.js 16 auth demo" cross-rig task. Used `--owned`; mayor wrote the convoy bead, the children spanned co_store and co_auth (via the label workaround), and `gc convoy land` was the terminating call.
+- `mc-a0oj6` (Day-8): "sling-mc-n333b ack daily-verbs page" — a sling-driven convoy with one child. Demonstrates that sling can produce convoys for tracked dispatches.
+
+**When NOT to use:** if the work is formula-driven and has internal step dependencies, that's a workflow's territory, not a convoy's. The deacon dispatches v2 formulas and produces workflow roots automatically; you don't reach for `gc convoy create` for those.
+
+## Relationship to the control-dispatcher
+
+The control-dispatcher agents (5 in this city, auto-injected when formula_v2 = true per §27) handle **workflow control beads** (`gc.kind=check|fanout|retry-eval|scope-check|workflow-finalize`). They don't touch convoys. The "convoy" terminology in `gc convoy control` is misleading — that command is for the workflow control-dispatcher, not for managing user convoys. **The unfortunate naming overlap is a manual-update candidate upstream.**
+
+## Connection back to §25 (orders) and §26 (mayor)
+
+Convoys fill the user-coordination layer; orders fill the periodic-dispatch layer; workflows fill the formula-compiled-DAG layer. Together they're the three dispatch primitives:
+
+| Primitive | When | Who creates |
+|---|---|---|
+| Order | Periodic cooldown trigger (§25) | Deacon (auto) |
+| Workflow | A v2-contract formula dispatches (per order or sling) | Sling/dispatcher (auto) |
+| Convoy | Human or coordinator agent groups related beads (§29 — this section) | User or mayor (manual) |
+
+Mayor (per §26's null result) coordinates via convoys, not workflows. When mayor decomposed work on Day-4, the result was a `type:convoy` bead, not a `gc.kind=workflow` graph. Mayor's mental model doesn't reach for v2 contracts; convoys are the right primitive for human-curated coordination, and v2-formula authors handle DAG shape inside their formulas.

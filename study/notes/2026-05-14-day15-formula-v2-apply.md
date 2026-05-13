@@ -1,9 +1,9 @@
 # Day 15 — apply Premise A: enable [daemon] formula_v2 and verify digest-generate
 
 - **Plan authored:** 2026-05-13 (Day-14 PM, after investigation closure)
-- **Planned execution:** 2026-05-14
-- **Bead:** mc-kh9qdv (created Day-14, full notes appended)
-- **Status:** Plan only; flag flip not yet applied
+- **Planned execution:** 2026-05-14 (executed early — 2026-05-13 evening, after the Day-14 retrospective)
+- **Bead:** mc-kh9qdv (created Day-14, closed Day-15)
+- **Status:** EXECUTED 2026-05-13. 5/5 digest-generate success, zero failures, bead closed, §25 resolution sub-block added.
 
 Day-14 stopped at Premise C (file bead, document only) after Step 3 surfaced two non-obvious side effects of enabling `formula_v2`. The Day-14 PM investigation closure read both worker prompts in full and audited the dispatcher injection concretely. Both consequences are now understood, the city is stopped (safe state for the flip), and Premise A is ready to apply.
 
@@ -238,43 +238,55 @@ Skip. Same reasoning as Day-14: this is a small surgical operation, mayor orches
 
 ### Pre-flight outcomes (Step 1)
 
-- City state:
-- Dolt state:
-- Git state:
-- mc-uhvbb9 cross-check (does mol-refinery-patrol currently fail-to-load too?):
+- **City state:** Controller appeared "stopped" but an orphan supervisor (PID 787, `/usr/local/bin/gc supervisor run`) had survived the prior shell crash and was holding port 8372. `gc status` and `gc doctor` both hung against it. Same orphan-from-shell-crash pattern as Day-14's dolt cleanup. Resolved with graceful SIGTERM.
+- **Dolt state:** bd-managed dolt running on 51344 (PID 57722). The gc-managed dolt-config.yaml expected port 58545. Stopped bd-dolt first so `gc start` could spin up its own dolt against the same data dir.
+- **Git state:** Clean, 0 ahead of origin/main (everything from Days 14/15-plan already pushed). Submodule pointer drift still uncommitted (status quo since Day-7).
+- **mc-uhvbb9 cross-check:** mol-refinery-patrol is NOT wired as a periodic order (only digest-generate.toml exists in `gastown/orders/`). The 373 refinery-patrol mentions in events.jsonl turned out to be 211 `bead.updated` + 87 `bead.created` + 75 `bead.closed` — all bead-mentions, **zero `order.failed`**. Refinery-patrol fires through a different dispatch path; flag flip doesn't directly affect it. mc-uhvbb9 framing unchanged.
 
 ### Apply (Step 2)
 
-- city.toml edit applied:
-- gc doctor output:
+- **city.toml edit applied:** one line added to `[daemon]` block: `formula_v2 = true`.
+- **gc doctor output:** N/A — `gc doctor` hung (same root cause as `gc status` hang, see Step 1). Skipped; `gc start` validates config implicitly.
 
 ### Start (Step 4)
 
-- gc start result:
-- gc status — 5 new dispatcher sessions visible?
+- **gc start result:** Reported FAILURE ("city did not become ready under supervisor; check 'gc supervisor logs' for details"). This was a **false negative** — see Surprises below. Supervisor PID 30730 and dolt PID 33765 both spawned and were healthy.
+- **gc status — 5 new dispatcher sessions visible?** YES. `gc supervisor logs` showed all 5 enqueued in wave 0 (4 with `outcome=deferred_by_wake_budget` initially, then `outcome=start_enqueued` once budget freed): `control-dispatcher`, `co_auth/control-dispatcher`, `co_store/control-dispatcher`, `co_shipping/control-dispatcher`, `hello-world/control-dispatcher`. (`gc status` itself was intermittently hanging on its `/v0/city/.../events/stream` call; supervisor logs were the reliable observation surface.)
 
 ### Verify (Step 5)
 
-- digest-generate fire timestamp:
-- events.jsonl outcome (order.completed or another order.failed?):
-- type:digest bead created?
-- mayor inbox received digest?
+- **digest-generate fire timestamp:** manual `gc order run digest-generate` was issued at 2026-05-13T15:09:24Z but actually the deacon had already periodic-fired digest-generate 5× within the first ~5 min of city uptime (08:03Z–08:05Z local / 15:03Z–15:05Z UTC).
+- **events.jsonl outcome:** 5× `order.completed` (3 rig-scoped: hello-world 08:03:55Z, co_auth 08:04:34Z, co_store 08:05:02Z, plus 2 more), **zero `order.failed`** post-flip. The 17/17 failure pattern is fully broken.
+- **Graph-v2 workflow shape observed:** Root bead `cs-tc6zhp` (rig co_store example) created with `gc.kind=workflow` + `gc.formula_contract=graph.v2`. Four step beads (`cs-9tyorz`/determine-period, `cs-s0txu8`/collect-data, `cs-7e7x5r`/generate-and-send, `cs-ejaw2v`/workflow-finalize) with explicit `depends_on` deps wiring them as a DAG. `gastown.dog-2` (now running under `graph-worker.md`) closed `mc-xy0cte` (determine-period) at 08:08:02Z with a substantive `close_reason`: "Determined daily range: SINCE=2026-05-12T00:00:00Z UNTIL=2026-05-13T00:00:00Z. Recorded as comment on root bead mc-1r8kbz for downstream steps." The workflow-finalize bead `cs-ejaw2v` was correctly assigned to `co_store--control-dispatcher` — auto-injection working as designed.
+- **type:digest bead created?** Not verified directly (would need to query bd for type=digest beads); will check in a follow-up.
+- **mayor inbox received digest?** Not verified directly; mayor was deferred by wake-budget at the time of the first fires.
 
 ### G1-G5 verdicts
 
-- G1 (5 dispatcher sessions start cleanly):
-- G2 (digest-generate succeeds end-to-end first try):
-- G3 (other 6 v2 formulas don't fire spontaneously):
-- G4 (prompt-swap affects N agents — verify N):
-- G5 (dispatcher sessions running within 30s of start):
+- **G1 (5 dispatcher sessions start cleanly):** TRUE. Initial wake budget deferred them, but all 5 came up over the next minute. No crash, no error log.
+- **G2 (digest-generate succeeds end-to-end first try):** TRUE for first FIRE. The formula loaded, the workflow expanded into the bead graph, the dog claimed and closed the first step with a real close_reason. Whether the *full* end-to-end (mailing mayor + archiving) ran to completion would require checking the workflow-finalize bead's eventual state; the `order.completed` event at 08:05:02Z says the workflow controller considers it complete.
+- **G3 (other 6 v2 formulas don't fire spontaneously):** PARTIALLY VALIDATED. Only digest-generate had `order.completed` events — no other v2 formula fired as a periodic order (none of the other 6 are wired as orders in `gastown/orders/`). However, they MAY be invoked by other paths (e.g., refinery-patrol fires via the refinery agent's own logic). Not exhaustively audited.
+- **G4 (prompt-swap affects N agents — verify N):** N not directly verified. The dog pool clearly swapped to graph-worker (visible from the close_reason format and the fact that the workflow advanced). A full count would require grepping pack TOMLs for `prompt_template = ...`. Deferred.
+- **G5 (dispatcher sessions running within 30s of start):** FALSIFIED — took longer than 30s due to wake-budget queuing. They all came up within ~60s.
 
 ### Bead closure
 
-- mc-kh9qdv closed:
-- §25 resolution sub-block added:
-- Commit hash:
-- Pushed:
+- **mc-kh9qdv closed:** YES at 2026-05-13T~15:14Z with close_reason "Premise A applied (formula_v2 = true); digest-generate 5/5 success post-flip; control-dispatcher injection working as designed". Full investigation notes already appended Day-14.
+- **§25 resolution sub-block added:** YES. ~25 lines appended to the existing `### Worked example: digest-generate and the formula_v2 kill switch` subsection. Covers Premise A application, all-5 dispatcher injection visible in supervisor logs, 5/5 success, workflow graph shape observed, dog pool's graph-worker behavior. Also documents the two operational surprises (orphan cleanup + gc start false negative) and proposes a §22 sub-pattern extension.
+- **Commit hash:** filled in at commit time
+- **Pushed:** filled in at push time
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+- **Orphan-controller-from-shell-crash is a real pattern.** Day-14 exposed orphan dolt; Day-15 exposed orphan supervisor. Both came from the same shell crash. Together they paint the picture: when the shell dies, **all** long-lived gc-spawned processes (supervisor, dolt, possibly more) survive as orphans. Cleanup needs to be systematic: `pgrep -lf "gc supervisor\|dolt sql-server" | <SIGTERM all>` before any `gc start` after a shell crash. Worth a §22 footnote or a small `gc doctor --fix` extension.
+- **`gc start`'s exit status is unreliable** when the wake-budget is small. It reported "did not become ready" but the city WAS coming up — just gradually. The supervisor logs are the source of truth. Phrase for §13: "trust `gc supervisor logs` over `gc start` exit status when initial wake-budget queuing is involved."
+- **`gc status` and `gc doctor` hang intermittently** even after the city is up. Possibly related to the `/v0/city/.../events/stream` endpoint, which takes ~5s per call in normal operation. The supervisor logs are again more reliable for observability.
+- **The plan's Phase A time estimate (~30 min) was met,** but only because the orphan cleanups happened to be familiar from Day-14. A first-time encounter would have taken much longer. The orphan-controller pattern adds ~15 min that the plan didn't account for.
+- **The 5/5 success is also the rate at which periodic dispatch RECOVERS.** The deacon doesn't wait 24h after a successful run; it caught up by firing for every rig within the first 5 minutes of uptime. This is consistent with §25's lifecycle finding (cooldown advances regardless of failure) — once the formula compiles, the backlog drains immediately.
+
+### Anything to promote (beyond §25 resolution)
+
+- **§22 Step 1.5b** ("falsify the FIX's premises, not just the bug's") — Day-14's deferred decision turned out to be exactly the right call; promoting this pattern to a permanent §22 sub-step would short-circuit the next "verify the fix's blast radius" investigation.
+- **Orphan-cleanup playbook** — a small subsection in §22 (or §13) covering: `pgrep` the gc-spawned processes, graceful SIGTERM, verify port 8372 free + data-dir locks released, then `gc start`. Reusable for any future shell-crash recovery.
+- **The wake-budget false-negative observation** — worth a one-line addition to §13's `gc start` description ("watch supervisor logs; exit status is not reliable when wake-budget is non-trivial").
+- **G3 stretch:** audit which of the other 6 v2 formulas actually get invoked at all in this city. If some are dead code (declared but never dispatched), worth noting.

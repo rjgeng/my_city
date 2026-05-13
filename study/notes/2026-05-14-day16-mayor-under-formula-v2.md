@@ -2,7 +2,8 @@
 
 - **Plan authored:** 2026-05-13 (evening, after Day-15 closure)
 - **Planned execution:** 2026-05-14 (Day-16)
-- **Status:** Plan only; experiment not yet run
+- **Actual execution:** 2026-05-13 (same evening — pivoted from synthetic Option B to observation of in-flight real work)
+- **Status:** EXECUTED. Pivoted from synthetic task to retroactive observation of mayor's autonomous resolution of a real deacon escalation (mc-wisp-p0j2 / mc-gpc5i9: jsonl-export SCRUB_FILTER column-name bug). v2 manual §26 written as a null-result section.
 
 The natural successor to Day-9/10's paired control. Day-9 ran light-mayor as the orchestrator and disproved that the explicit nudge was load-bearing. Day-10 paired-controlled that conclusion. Both used light-mayor; full-mayor was explicitly deferred ("save full-mayor variant for a later day"). With formula_v2 now on after Day-15, the city is in a new operating regime — Day-16 is when we see what mayor decomposition looks like in that regime.
 
@@ -274,58 +275,78 @@ The one piece of explicit coordination: the brief in Step 2 should follow the Da
 
 ### Pre-flight outcomes (Step 1)
 
-- Supervisor + dolt still up:
-- Mayor's effective prompt template (custom or graph-worker.md fallback):
-- 5 control-dispatcher sessions tracked:
-- Overnight surprises in supervisor logs:
+- **Supervisor + dolt still up:** Supervisor PID 30730 still alive (39 min elapsed since Day-15 `gc start`). Dolt was recycled overnight (33765 → 97131) — supervisor recovered it cleanly without intervention.
+- **Mayor's effective prompt template:** "# Mayor Context" — custom `prompt.template.md` loaded by convention, NOT the graph-worker.md fallback. **G1 pre-validated.**
+- **5 control-dispatcher sessions tracked:** All 5 active in `gc session list` (mc-9o1aff city + mc-sn4wwl co_auth + mc-gm54vc co_store + mc-yatv5h hello-world + mc-ggcvam co_shipping), last-active timestamps within the last hour.
+- **Overnight surprises in supervisor logs:** Boot waking patterns, repeated `slow_storage_degraded` (Day-6's misnamed-warning baseline holds), two stale refinery wisps still in_progress from yesterday (`cs-wisp-odsf`, `ship-wisp-vx6g`). No errors.
 
 ### Mayor briefed (Step 2)
 
-- Task option selected:
-- Brief sent timestamp:
+- **Task option selected:** PIVOTED. Day-16 was about to brief mayor with Option B (/health endpoint across 3 rigs) when `gc session peek mc-d7k` revealed mayor was already mid-flight on a real autonomous fix (jsonl-export SCRUB_FILTER bug, see Observation window below). Pivoted to retroactive observation of the in-flight work instead.
+- **Brief sent timestamp:** N/A (no brief sent). The "task" was real-world: deacon escalation `mc-wisp-p0j2` arrived at mayor at 2026-05-13T15:09:47Z. Mayor's window: 15:09:32Z (deacon files bead) → 15:12:14Z (mayor's last events.jsonl entry).
 
 ### Observation window (Step 3-4)
 
-- New workflow roots (`gc.kind=workflow`):
-- Cross-rig beads (rig-prefixed in mayor's namespace):
-- control-dispatcher assignments observed:
-- order.failed events:
-- mol-scoped-work / mol-review-quorum invocations:
-- Mayor stall / nudge episodes:
+- **New workflow roots (`gc.kind=workflow`) in mayor's window:** 0
+- **Cross-rig beads (rig-prefixed in mayor's namespace):** 0. Single-rig HQ fix.
+- **control-dispatcher assignments observed:** 0 events in mayor's window. **G4 confirmed.**
+- **order.failed events:** 0 in window (the existing mol-dog-jsonl `order.failed` events that triggered the deacon escalation are PRE-window).
+- **mol-scoped-work / mol-review-quorum invocations:** 0. **G6 falsified.**
+- **Mayor stall / nudge episodes:** none. Mayor responded within 3 seconds of escalation arrival and ran to completion in ~3 minutes with no human nudge.
 
 ### Results (Step 5)
 
-- Total wall-clock:
-- Beads created:
-- Beads closed:
-- Workflow roots created:
-- Per-rig per-agent breakdown:
+- **Total wall-clock:** ~3 minutes mayor-active (15:09:35 → 15:12:14), ~30 min including the deacon's pre-escalation patrol cycles and event-bus settling.
+- **Beads created:** 2 (mc-w2emmn nudge to deacon, mc-wisp-vepr mail reply).
+- **Beads closed:** 2 (mc-gpc5i9 SCRUB_FILTER bug, mc-wisp-p0j2 escalation wisp).
+- **Workflow roots created:** 0
+- **Per-rig per-agent breakdown:** all activity at HQ (no rig-prefix beads). Only actor: `gastown.mayor` (15 events). Deacon was the upstream actor (file the bead, send the escalation, deliver the nudge) at 15:09:32 and 15:09:47.
 
 ### G1-G7 verdicts
 
-- G1 (mayor template NOT affected by flag):
-- G2 (polecats DO use default template → swap to graph-worker):
-- G3 (mayor produces v2 workflow roots):
-- G4 (control-dispatcher participates / doesn't):
-- G5 (Day-4 cross-rig convoy gap unchanged):
-- G6 (mol-scoped-work / mol-review-quorum invoked):
-- G7 (wall-clock 2-3× light-mayor):
+- **G1 (mayor template NOT affected by flag): TRUE.** Pre-flight `gc prime gastown.mayor` returns "# Mayor Context"; the formula_v2 prompt swap doesn't reach mayor (custom convention-discovered template wins).
+- **G2 (polecats DO use default template → swap to graph-worker): N/A.** Mayor fixed directly without dispatching to polecats; the prompt-swap effect on polecats wasn't exercised this session.
+- **G3 (mayor produces v2 workflow roots): FALSE.** 0 `gc.kind=workflow` beads. Mayor's beads were `chore` (nudge) and `message` (mail), not v2 workflow shapes.
+- **G4 (control-dispatcher participates / doesn't): TRUE (doesn't).** 0 dispatcher events in mayor's window. Dispatcher only fires for `gc.kind=check|fanout|retry-eval|scope-check|workflow-finalize` beads, produced by v2-formula compilation — not by mayor's ad-hoc bead creation.
+- **G5 (Day-4 cross-rig convoy gap unchanged): N/A.** Single-rig fix; no cross-rig handoff exercised.
+- **G6 (mol-scoped-work / mol-review-quorum invoked): FALSE.** Neither fired during the window. Inert in this city despite the flag being on.
+- **G7 (wall-clock 2-3× light-mayor): N/A.** Reactive incident response (~3 min), not coordination-style decomposition. Not comparable to light-mayor framing.
 
 ### Compare table (Day-4 / Day-9-10 / Day-16)
 
-(filled in during Step 6)
+| Axis | Day-4 (v1 full) | Day-9/10 (v1 light) | Day-16 (v2, reactive) |
+|---|---|---|---|
+| Total wall-clock | ~6 hours | ~12 minutes (light) | ~3 minutes (reactive) |
+| Beads created by mayor | many (full decomposition) | a few | 2 |
+| Workflow roots (gc.kind=workflow) | 0 (v1) | 0 (v1) | 0 (v2, but unused by mayor) |
+| Cross-rig handoffs | YES (with workaround) | NO | NO |
+| Dispatcher activity | n/a | n/a | 0 in window |
+| Convoy bead vs soft-link | soft-link (Day-4 mc-wjos2g) | n/a | n/a |
+| Mayor's style | decompose-and-dispatch | coordinate-explicitly | fix-when-fast (per prompt) |
+| Escalations / blockers | several mid-flight | none | none (deacon pre-diagnosed) |
+
+The Day-16 row is too narrow to compare apples-to-apples with Day-4 — different task shapes. But within its own framing, Day-16 is a clean "Dispatch Liberally, Fix When Fast" worked example.
 
 ### v2 manual §26 candidate added
 
-- [ ] Subsection drafted
-- [ ] Compare with v1 full-mayor (Day-4)
-- [ ] When full-mayor vs light-mayor under v2
-- [ ] New pitfalls / new affordances
+- [x] Subsection drafted (§26 "Mayor under formula_v2 = true (the null-result section)" — ~80 lines)
+- [x] Worked example: the mc-gpc5i9 incident response timeline
+- [x] What didn't change (null results enumerated)
+- [x] What did change (the .gc/ gitignore-vs-live-runtime observation)
+- [x] When to expect v2 to actually matter (the "user-facing decisions are not v2-aware" framing)
+- [x] §17/§22 mental-model cross-references
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+- **Day-16 met reality before it could be run as designed.** Mayor was already in the middle of an autonomous fix when the plan opened. The synthetic Option B brief was never sent. The honest interpretation: the plan was correctly recommending an experiment, but reality was already running a better one in the background. Worth a session-design note: when planning an experiment, peek at the relevant agent's current state first.
+- **Deacon does most of the diagnostic work; mayor decides + executes.** The deacon's escalation mail named the file, the line, and the fix. Mayor's "decomposition" was effectively "agree with deacon and apply." This is the division-of-labor design (deacon = patrol + observation, mayor = decision + execution) working as intended. Day-4 was an unusual day in that mayor did more decomposition work because the deacon hadn't yet matured.
+- **`.gc/` is gitignored at the HQ level.** Mayor's fix lives at `.gc/system/packs/maintenance/assets/scripts/jsonl-export.sh:485` — a path that can be edited but not committed from the HQ city. The fix is **ephemeral until the maintenance pack is reinstalled**. Real fixes have to go through `study/gascity-src` (upstream). Mayor noted this in its reply ("No tracked git changes in /Users/rfvitis/my-city because .gc/ is ignored").
+- **There was a SECOND fix mayor applied** that didn't generate a bead: making missing `archive-repo origin` count as local-only instead of as a push failure. Mayor's session log mentions it but events.jsonl doesn't reflect a separate close. This is a real divergence — for full audit, mayor's session logs need to be cross-referenced against events.jsonl. Pure event-bus mining misses it.
+- **The "❯ commit it" rendering** in the `gc session peek` output appears to be a stale composition state in mayor's tmux UI; mayor processed its work fully and is now idle. Not blocking, but a UX confusion worth noting — `peek` doesn't make clear what's "input-pending" vs "output-rendered."
 
 ### Anything to promote (beyond §26)
 
-(filled in after the experiment)
+- **The "peek before brief" workflow** — before sending a task to any agent, check `gc session peek <id>` to see what they're currently doing. The plan template should include this in Step 1 going forward.
+- **Mayor's session-log vs events.jsonl divergence** — for a complete picture, both surfaces have to be merged. Worth a small util script that aggregates them by session window. Possibly §22 or §23 candidate material.
+- **The `.gc/` gitignore + live-runtime-edit asymmetry** — mayor surfaced this organically today; it's the second time the user has hit it (Day-7 PR #2037 was for the upstream version of this exact pack). A v2 manual §22 footnote noting "the live runtime path is editable but ephemeral; persistent fixes go upstream" would prevent the next time someone wonders why their mayor edit didn't survive a pack refresh.
+- **The orphan-dolt + overnight-recovery observation** — the supervisor recycled dolt from 33765 → 97131 without intervention. This is the supervisor's auto-recovery working as advertised. Worth a one-line note in §12/§13 (controller ownership recovery).

@@ -246,44 +246,65 @@ Skip. This is a personal learning tour. Mayor orchestration would only obscure d
 
 ## 10. Execution log
 
-(filled in as work happens)
+Executed 2026-05-12, same session as plan authoring. All six investigation steps + §25 drafted in one pass.
 
 ### Pre-flight outcomes
 
-- Order definition layout (Step 1):
-- `gc order` CLI surface (Step 2):
-- Order traffic profile (Step 3 top-N by name):
+- **Order definition layout (Step 1):** flat TOML files at `.gc/system/packs/<pack>/orders/<name>.toml`. 19 orders across 4 packs — core (1), gastown (1), maintenance (9), dolt (8). All 7 event-bus order names seen in Day-9 logs are present on disk. `bd` has no `order` type — beads is the wrong registry.
+- **`gc order` CLI surface (Step 2):** six subcommands — `list`, `show`, `check`, `history`, `run`, `sweep-tracking`. `list` is the canonical catalog (matches Step 1's filesystem walk and adds trigger/interval/rig/target columns). `history` reads from beads (city-up only); `check` evaluates live triggers. `gc order help` prose announces 5 trigger flavors (`cooldown / cron / condition / event / manual`).
+- **Order traffic profile (Step 3 top-N by name):** Across 2026-05-07 to 2026-05-12 (~8% wall-clock uptime): gate-sweep 5890, order-tracking-sweep 4199, beads-health 1871, dolt-health 1793, cross-rig-deps 1340, orphan-sweep 1323, spawn-storm-detect 1314, mol-dog-jsonl 517, mol-dog-reaper 277, wisp-compact 148, dolt-remotes-patrol 128, prune-branches 45, dolt-gc-nudge 36, digest-generate 17, mol-dog-compactor 4, mol-dog-backup 2, mol-dog-doctor 1, mol-dog-phantom-db 1. Total order events: 37,811 fired+completed+failed. 62 failures, 11 of which were the 2026-05-12T08:55-08:57 shutdown-burst cancellations.
 
 ### Worked example
 
-- Chosen order:
-- Definition file path:
-- Fields in the TOML:
-- Schedule expression:
-- Most recent firing trace (Step 6 summary):
+- **Chosen order:** `mol-dog-jsonl` (per plan §4 Step 4 recommendation; closes Day-5 mc-vj3hjk loop).
+- **Definition file path:** `.gc/system/packs/maintenance/orders/mol-dog-jsonl.toml`.
+- **Fields in the TOML:** only four — `description`, `exec` (script path), `trigger = "cooldown"`, `interval = "15m"`. No `formula`, no `gates`, no `on_failure`, no `scope`, no `pool`.
+- **Schedule expression:** `cooldown` trigger with `interval = "15m"`. The script invoked is `$PACK_DIR/assets/scripts/jsonl-export.sh` (719 lines) — runs inline in controller process.
+- **Most recent firing trace (Step 6 summary):** Pair on 2026-05-12 — fire at 08:41:23.492, completion at 08:44:28.229 (~3m05s wall), both `actor=controller`, `subject=mol-dog-jsonl:rig:co_auth`. **Zero intermediate events** emitted by the order itself; the 930 events observed in the 3-minute window were concurrent activity from other orders (gate-sweep 6×, order-tracking-sweep 3×, orphan-sweep 1×) plus rig-local bead operations.
 
 ### H1-H5 verdicts
 
-- H1 (controller dispatches orders):
-- H2 (interval schedules, not cron):
-- H3 (failures escalate via mail):
-- H4 (`gc orders list` exists):
-- H5 (orders fan out per-rig):
+- **H1 (controller dispatches orders):** **CONFIRMED.** 100% of 37,811 order events have `actor=controller`. No agent ever fires an order.
+- **H2 (interval schedules, not cron):** **PARTIALLY FALSIFIED.** 18/19 orders use cooldown, but `mol-dog-stale-db` uses cron `0 */4 * * *`. The trigger menu also includes `condition`, `event`, `manual` — 5 flavors total, not 1. Mental model "all interval" was wrong in principle.
+- **H3 (failures escalate to mayor via mail):** **CONFIRMED with structural correction.** Escalation IS per-exec-script logic (e.g., jsonl-export.sh:329-333 fires `gc mail send mayor/` after 3 consecutive failures), NOT a unified order-layer policy. The order layer has no `on_failure` field. This is a §22-style premise correction promoted to §25.
+- **H4 (`gc orders list` exists):** **CONFIRMED.** Singular: `gc order list`.
+- **H5 (orders fan out per-rig):** **CONFIRMED with per-order nuance.** Maintenance pack orders + `digest-generate` fan out across all 5 rigs (6 catalog rows each — 1 city-scope + 5 rig-scope). Dolt mol-dogs and core `beads-health` are city-scope only.
 
 ### v2 manual §25 added
 
-- [ ] What an order is
-- [ ] Catalog of orders in this city
-- [ ] Lifecycle
-- [ ] Schedule expression
-- [ ] Reading order events
-- [ ] `gc order` CLI
-- [ ] Failure model (with mc-vj3hjk as worked example)
+- [x] What an order is — bifurcation into exec / formula flavors; controller as sole dispatcher
+- [x] Catalog of orders in this city — table by pack, with cadence + 5-day fire counts
+- [x] Lifecycle — fire → run → complete/fail → next-tick, with the "no intermediate events" observation
+- [x] Schedule expression — five trigger flavors per help text, 18/19 cooldown in practice
+- [x] Reading order events — three surfaces (events.jsonl / gc order history / gc order check), each with limits; "fourth lens = side effects" added
+- [x] `gc order` CLI — six subcommands with use cases
+- [x] Failure model (with mc-vj3hjk as worked example) — full reconstruction of the Day-5 escalation chain in light of §25's mental model
+
+Section added at v2 manual lines 1225-1419 (194 lines).
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+Things this plan got wrong, or new things surfaced:
+
+1. **Orders bifurcate into exec / formula flavors.** Plan implicitly assumed all orders were formula-flavored ("formulas with gate conditions on Event Bus" from AGENTS.md). Reality: 14 exec + 5 formula. Exec orders run inline in the controller — no wisp, no agent, no chat history. This is the single most useful new mental model from Day-13.
+2. **The TOML field set for a real exec order is much sparser than the plan's hypothesized field list.** mol-dog-jsonl.toml has only 4 keys; the plan listed 7 expected fields (`name`, `formula`, `schedule`, `cooldown`, `gates`, `on_failure`, `scope`) — 5 of which don't exist for exec orders. Scope and failure handling are implicit.
+3. **The event bus is intentionally outline-only.** No intermediate events during a run. For exec orders, the work product lives entirely in side effects (state files, git commits, mail sent by the script). This wasn't in the plan's mental model.
+4. **`gc order history` requires Dolt running.** Plan assumed events.jsonl + bead history were both passive-readable. In practice, history is city-up only; events.jsonl is the city-down fallback.
+5. **`digest-generate` apparent 100% failure rate** (17 fired / 17 failed across 5 days). Surfaced incidentally; not investigated today. Real candidate for Day-14+ bead filing.
 
 ### Anything to promote to v2 manual (beyond §25)
 
-(filled in after the tour)
+Nothing additional today. §25 absorbed every insight cleanly:
+
+- The exec / formula bifurcation lives in §25 "What an order is."
+- The per-exec-script escalation pattern (and its premise correction against H3) lives in §25 "Failure model."
+- The "three observability surfaces, each with limits" table lives in §25 "Reading order events."
+- The fourth-lens-is-side-effects mental model is in the same subsection.
+
+§24 (upstreaming) and §22 (debugging pack scripts) are the natural cross-references — neither needed an amendment based on Day-13 findings.
+
+### Items deferred to Day-14+
+
+- **`digest-generate` 100%-fail anomaly.** Diagnose root cause; consider filing as a P3 bead if it's a real bug, or write up as a §22-style premise correction if it's a misconfiguration on our side.
+- **Convoys tour.** The Day-13 plan deferred the convoys tour the user had declined earlier. Day-13 surfaced that orders and convoys both rely on gates — convoys tour is now better-informed.
+- **Sample one mol-dog-jsonl state file** (`.gc/runtime/packs/maintenance/jsonl-export-state.json` or similar) to round out the "side effects = the work product" observation with a concrete example. Low priority.

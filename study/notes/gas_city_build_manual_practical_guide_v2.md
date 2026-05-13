@@ -1221,3 +1221,199 @@ Length target: 20-35 lines. Long enough to be substantive, short enough not to d
 If the duplicate-search finds your issue is already tracked, that's not a setback — it's the system working correctly. The upstream community has organized itself around the right concerns and you joined a thread instead of fragmenting it. Day-12 plan §5 framed this as "best-case negative outcome." It's actually one of the better outcomes — your evidence reaches maintainers in the place they're already looking, and you build relationship with the project's other contributors (commenting alongside them is a form of acknowledgment).
 
 The Day-12 mc-uhvbb9 bead stays OPEN locally with a link to the upstream comment. When the upstream fix lands, mc-uhvbb9 can be closed as fixed-upstream. No code review burden, no orphaned PR, no duplicate-issue cleanup needed.
+
+# 25. Orders: the city's autopilot
+
+The scheduling layer that runs `gate-sweep`, `mol-dog-jsonl`, `orphan-sweep`, `digest-generate`, `dolt-health`, and the rest — every few seconds to every few hours, without any human or agent kicking them off. AGENTS.md (in `study/gascity-src/`) classifies orders as *"formulas with gate conditions on Event Bus"*, but the in-city reality is more structured: orders bifurcate into two flavors, and the trigger menu has five options, not just one.
+
+## What an order is
+
+An order is a flat TOML file at `.gc/system/packs/<pack>/orders/<name>.toml` that pairs a **trigger condition** with an **action**. The controller (and only the controller — verified in §25's "Reading order events" below: `actor=controller` on 100% of 37,811 order events across 5 days) evaluates triggers on each tick and dispatches the action when one opens.
+
+Orders come in two flavors:
+
+- **Exec orders** run a shell script inline in the controller process. Used when the work is deterministic: dolt sql exports, jq parsing, git push, gate sweeps. No LLM, no agent, no wisp dispatched. Field: `exec = "$PACK_DIR/assets/scripts/<name>.sh"`.
+- **Formula orders** dispatch a formula (molecule) to a target agent pool — wisp-driven, LLM-judged. Used when the work requires judgment: `digest-generate` (gastown wisdom-digest writeup), `mol-dog-doctor` (database health triage). Fields: `formula = "<pack>.<name>"` plus a `target` pool.
+
+The bifurcation matters because **only formula orders produce a wisp** (and therefore agent activity / chat history / mail surfaces). Exec orders run silently inside the controller — their work product lives in **side effects** (state files, git commits, mail sent by the script itself), not in events.jsonl or bead history.
+
+In this city: **14 exec orders, 5 formula orders** (the five `mol-dog-*` formula orders in the dolt pack, plus `digest-generate`).
+
+## Catalog in this city
+
+`gc order list` is the canonical view. Output format: `NAME | TYPE | TRIGGER | INTERVAL/SCHED | RIG | TARGET`.
+
+Orders are defined once per pack but **fan out per rig for pack scopes that target rigs**. In this 5-rig topology (`hello-world`, `co_store`, `co_shipping`, `co_auth`, plus the implicit city-scope row), maintenance pack orders + `digest-generate` produce 6 catalog rows each (1 city-scope + 5 rig-scope). Dolt pack orders and `beads-health` are **city-scope only** — they sweep across all rigs in one pass, not per rig.
+
+By pack, with observed 5-day fire counts (2026-05-07 to 2026-05-12, ~8% wall-clock uptime):
+
+| Pack | Order | Type | Trigger | Cadence | Fires |
+|---|---|---|---|---|---:|
+| core | beads-health | exec | cooldown | 30s | 1,871 |
+| maintenance | gate-sweep | exec | cooldown | 30s | 5,890 |
+| maintenance | order-tracking-sweep | exec | cooldown | 1m | 4,199 |
+| maintenance | cross-rig-deps | exec | cooldown | 5m | 1,340 |
+| maintenance | orphan-sweep | exec | cooldown | 5m | 1,323 |
+| maintenance | spawn-storm-detect | exec | cooldown | 5m | 1,314 |
+| maintenance | mol-dog-jsonl | exec | cooldown | 15m | 517 |
+| maintenance | mol-dog-reaper | exec | cooldown | 30m | 277 |
+| maintenance | wisp-compact | exec | cooldown | 1h | 148 |
+| maintenance | prune-branches | exec | cooldown | 6h | 45 |
+| dolt | dolt-health | exec | cooldown | 30s | 1,793 |
+| dolt | dolt-remotes-patrol | exec | cooldown | 15m | 128 |
+| dolt | dolt-gc-nudge | exec | cooldown | 1h | 36 |
+| dolt | mol-dog-doctor | formula | cooldown | 5m | 1 |
+| dolt | mol-dog-phantom-db | formula | cooldown | 1h | 1 |
+| dolt | mol-dog-stale-db | formula | **cron** | `0 */4 * * *` | 0 |
+| dolt | mol-dog-backup | formula | cooldown | 6h | 2 |
+| dolt | mol-dog-compactor | formula | cooldown | 24h | 4 |
+| gastown | digest-generate | formula | cooldown | 24h | 17 |
+
+The cadence × fan-out × uptime product roughly predicts fire counts. `gate-sweep` dominates because of the 30s cooldown × 5-rig fan-out combination. Formula orders fire rarely — their work is heavier and gated by longer cooldowns.
+
+## Lifecycle
+
+Every fire produces a `fire → complete-or-fail` pair on the event bus. For `mol-dog-jsonl` on 2026-05-12T08:41:23, the pair was:
+
+```
+08:41:23.492  order.fired      mol-dog-jsonl:rig:co_auth   actor=controller
+08:44:28.229  order.completed  mol-dog-jsonl:rig:co_auth   actor=controller
+```
+
+Wall duration: ~3m05s. The event payloads are **minimal** — no `duration` field, no `message` field, no `payload` object, no `trace_id`. Just `seq / type / ts / actor / subject`. Events.jsonl gives the **outline** of order activity, never the **substance**.
+
+Between fire and completion, **mol-dog-jsonl emits no intermediate events of its own**. The 930 events observed during its 3-minute window were concurrent activity from other orders (gate-sweep firing 6× during this window, order-tracking-sweep 3×, orphan-sweep 1×) plus rig-local bead operations. Same goes for every other exec order: the controller fires, the script runs, the script returns, the controller emits `order.completed`. No mid-flight progress.
+
+Subject formats observed:
+- `<name>:rig:<rig-name>` — rig-scoped fire (e.g., `gate-sweep:rig:co_shipping`)
+- `<name>` — city-scope fire (e.g., `dolt-health`, or `mol-dog-jsonl` when running against the city-scope dolt store before a §25-style topology change)
+- `<name>:rig:<rig-name>` even for orders whose pack is city-scope-only, when run with the `--rig` disambiguator
+
+After completion, the cooldown clock starts. The order is **due** again after `interval` elapses; the controller's next tick that sees a due order with the trigger condition satisfied fires it.
+
+## Schedule expression
+
+The `gc order` help advertises five trigger flavors: `cooldown`, `cron`, `condition`, `event`, `manual`. **In practice, 18/19 orders use `cooldown`. The lone exception is `mol-dog-stale-db` with cron `0 */4 * * *`** (every 4 hours on the hour). No `condition`, `event`, or `manual` triggers are defined in this city's pack set.
+
+Cooldown TOML shape (mol-dog-jsonl):
+
+```toml
+[order]
+description = "Export Dolt databases to JSONL git archive"
+exec = "$PACK_DIR/assets/scripts/jsonl-export.sh"
+trigger = "cooldown"
+interval = "15m"
+```
+
+Four keys total. No `gates`, no `on_failure`, no `scope`, no `formula`, no `pool`. Scope is implicit (pack-level + the controller's per-rig fan-out logic). Failure handling is implicit (see "Failure model" below).
+
+The cron flavor uses the standard 5-field expression. Cooldown is simply "minimum elapsed wall time since last completion before next fire is eligible."
+
+## Reading order events — three surfaces, each with limits
+
+| Surface | Reads from | When usable | Granularity | Use for |
+|---|---|---|---|---|
+| `.gc/events.jsonl` | flat file on disk | always | outline only | recent history, frequency profiling |
+| `gc order history <name>` | beads (Dolt) | **city-up only** | bead-record level | per-order audit trail when city is running |
+| `gc order check` | live controller state | city-up only | forward-looking | "what will fire on the next tick?" |
+
+For city-down forensics (e.g., post-mortem on a failed run after a crash), only events.jsonl is available. Useful patterns:
+
+```bash
+F=$CITY/.gc/events.jsonl
+
+# Top 20 orders by fire count
+grep '"type":"order.fired"' "$F" | python3 -c "
+import json, sys; from collections import Counter
+c = Counter()
+for line in sys.stdin:
+    try: ev = json.loads(line)
+    except: continue
+    c[ev.get('subject','').split(':rig:')[0]] += 1
+for n,k in c.most_common(20): print(f'{k:6} {n}')
+"
+
+# All recent failures (subject + raw error)
+grep '"type":"order.failed"' "$F" | tail -20 | python3 -c "
+import json, sys
+for line in sys.stdin:
+    ev = json.loads(line)
+    print(f\"{ev['ts'][:19]} {ev.get('subject','')} {ev.get('message','')}\")"
+
+# Pair a single fire with its completion (3m05s mol-dog-jsonl example)
+awk '/2026-05-12T08:41:23\.4/,/2026-05-12T08:44:28\.3/' "$F" | grep 'mol-dog-jsonl:rig:co_auth'
+```
+
+**Critical caveat for the third pattern**: `awk` time-range filtering across events.jsonl works because timestamps are roughly monotonic in the controller's write order, but events from other orders firing inside the window will dominate the output. Filter further by `grep <subject>` if you want only the matching pair, or by `grep co_<rig>` if you want everything that touched that rig.
+
+**The fourth lens for exec orders is side effects, not events.** To learn what a specific run did, look at:
+
+- The script's state file in `$PACK_STATE_DIR/.../`
+- For mol-dog-jsonl: `git log` inside `$ARCHIVE_REPO` (the jsonl-archive git repo)
+- For escalations: mayor's inbox via `gc mail`
+
+The event bus is intentionally outline-only.
+
+## `gc order` CLI
+
+Six subcommands, all introspection and one orchestration:
+
+```bash
+gc order list                       # full catalog (read-only)
+gc order show <name>                # single-order detail (read-only)
+gc order check                      # live "due to fire" status (read-only, city-up)
+gc order history <name>             # per-order bead trail (read-only, city-up + Dolt)
+gc order run <name>                 # MANUAL FIRE, bypasses trigger conditions
+gc order sweep-tracking             # close stale tracking beads (maintenance ops)
+```
+
+The `--rig` flag disambiguates same-named orders running in different rigs. Most useful invocations during investigation:
+
+```bash
+gc order list                          # daily — what's running, where, on what cadence
+gc order show mol-dog-jsonl            # before-edit — get current shape + source file path
+gc order check                         # during a stuck-city debug — what should fire next?
+```
+
+`gc order run` is the only non-read-only subcommand and is rare-by-design: bypassing a trigger violates the cooldown model, which can pile up redundant work. Use only when manually verifying that a fix works.
+
+## Failure model
+
+`order.failed` events carry just `ts / actor / subject / message`. The `message` field is the script's stderr last-line (e.g., `context canceled`, `signal: killed`, or a specific error string from the script).
+
+In 5 days of events: **62 `order.failed` events**, dominated by two patterns:
+
+1. **Shutdown-burst cancellations.** The 08:55-08:57 cluster on 2026-05-12 has 11 failures across 7 different orders, all with `context canceled` or `signal: killed`. These aren't real failures — they're in-flight orders being killed by `gc stop`. Pattern: clustered timestamps, multiple orders, generic cancellation messages. **Ignore for diagnosis.**
+2. **Real failures.** Spread across the run, with order-specific error messages. The 100%-fail anomaly worth noting: `digest-generate` fired 17 times and failed 17 times across the window — every single run failed. This is a real bug surface, separately tracked (not yet filed as a bead, candidate for Day-14+).
+
+**There is no order-layer escalation policy.** The order TOML has no `on_failure`, no `max_retries`, no `escalate_to` field. The controller logs the failure, emits the event, and resumes scheduling — that's it. Cooldown clock resets normally; the order will fire again on the next due window regardless of prior failure.
+
+**Escalation, when it happens, is per-script logic.** Example from `maintenance/assets/scripts/jsonl-export.sh:329-333`:
+
+```bash
+if [ "$consecutive" -ge "$MAX_PUSH_FAILURES" ]; then
+    gc mail send mayor/ -s "ESCALATION: JSONL push failed [HIGH]" \
+        -m "Consecutive failures: $consecutive (threshold: $MAX_PUSH_FAILURES)"
+fi
+```
+
+The script maintains its own `consecutive_push_failures` counter in its state file, and when it crosses a configurable threshold (default 3), the script directly mails the mayor. **This is how `mc-vj3hjk` was born.**
+
+### Worked example: mc-vj3hjk (the Day-5 JSONL push storm)
+
+Day-5 saw mayor receive a `JSONL push failed [HIGH]` mail that turned into wisp escalation `mc-vj3hjk`. With §25's mental model now in place, the failure chain is fully reconstructable:
+
+1. `mol-dog-jsonl` exec order fired on its 15-minute cooldown — controller dispatched as normal.
+2. `jsonl-export.sh` ran. The dolt sql export and jq counting steps succeeded. The git push to `$ARCHIVE_REPO` step failed (the original cause was the legacy `dolt-state.json` filename mismatch fixed in Day-7's pack-script-state-fallback PR, which caused the script's archive-repo discovery to silently degrade to a stale baseline).
+3. `record_archive_push_failure` incremented the consecutive failure counter in the script's state file. The event bus saw `order.failed mol-dog-jsonl ... pushing archive main failed`.
+4. After three consecutive failures, the script's escalation block fired the `gc mail send mayor/` line. Mayor's inbox received the escalation; mayor's controller spawned a wisp to triage it — that's `mc-vj3hjk`.
+5. From the operator's point of view: a mayor wisp appeared, asking about JSONL pushes, with no immediate visibility into *which* order failed *how many times* or *what the underlying cause was*. The audit trail required reading the script's state file directly.
+
+The §25 lesson: **for exec orders with per-script escalation, the event bus log is necessary but not sufficient.** Operator workflow for these failures:
+
+1. See the wisp / mayor mail.
+2. Read the relevant pack's state file (here: `.gc/runtime/packs/maintenance/jsonl-export-state.json`) for the failure counter and any pending-alert metadata.
+3. Run the failing exec script manually (with the script's debug env vars set) to reproduce.
+4. Cross-check the script source for what *would* have escalated — escalation thresholds and side-effect targets live in the script, not the TOML.
+
+The bifurcation matters here: a *formula* order failure would have produced a wisp in the normal pool routing, with full chat/mail context. An *exec* order failure routes through the script's own escalation channel, which is far more idiosyncratic.

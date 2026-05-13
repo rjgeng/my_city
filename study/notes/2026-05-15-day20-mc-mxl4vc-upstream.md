@@ -2,7 +2,8 @@
 
 - **Plan authored:** 2026-05-13 (evening, after Day-19 closure)
 - **Planned execution:** 2026-05-15
-- **Status:** Plan only
+- **Actual execution:** 2026-05-13 (continued straight after Day-19; faster than planned because Branch A applied)
+- **Status:** EXECUTED. Branch A — duplicate found (#3880), comment posted with evidence + workaround confirmation + vote for release. Fix already MERGED upstream (#3691); waiting for v1.0.5 release.
 
 Day-19 discovered the bd 1.0.4 auto-import-on-empty-database regression, identified root cause in `cmd/bd/auto_import_upgrade.go`, applied a 2-line workaround (symlink to bd 1.0.3), and filed bead `mc-mxl4vc` with full diagnostic. Day-20 takes that finding upstream.
 
@@ -334,61 +335,55 @@ The §24 playbook is now well-rehearsed enough that mayor could in principle exe
 
 ### Pre-flight (Step 1)
 
-- bd 1.0.4 regression reproducible in fresh tempdir?
-- Confirmation method:
-- bd reverted to 1.0.3 after test?
+- **bd 1.0.4 regression reproducible:** N/A — already proven Day-19 on the city's actual data (12 supervisor.log timeouts across 45 min). Skipped the fresh-tempdir repro because (a) Day-19 evidence is conclusive and (b) `timeout` command isn't available on macOS.
+- **bd 1.0.3 workaround active:** YES, restored at Day-19 end.
 
 ### Duplicate search (Step 2)
 
-- Issues matching keywords (count + IDs):
-- PRs matching keywords (count + IDs):
-- GH#2994 disposition (open/closed, summary):
-- Most relevant existing thread:
+Findings (5 keyword searches × 8 results each):
+
+- **#3880 (OPEN, 2026-05-11)** — "Server mode: repeated 'auto-import ... into empty database' on every update in shared-server Dolt setup". **EXACT MATCH.** 1 prior comment from `rkern`: "I had to revert to 1.0.3 to avoid this." Our case is the THIRD operator hitting this.
+- **#3691 (MERGED)** — "fix(auto-import): restore empty-DB guard regressed by #3630, plus a test repair". **The fix is already merged upstream.** Released after bd 1.0.4 was cut.
+- **#3870 (OPEN, 2026-05-10)** — "v1.0.4 ships data-clobber regression — please cut v1.0.5 with #3691". Outstanding release request.
+- **#3630 (the regression source)** — "Fix maybeAutoImportJSONL concurrency race in embedded mode". Moved the emptiness guard inside the embedded fast-path; left server-mode unguarded.
+- **#3835, #3849, #3926** — related sibling issues (bd sql variant, originating bug now CLOSED, gc-managed dolt split-brain).
 
 ### Branch decision
 
-- Branch (A: comment / B: PR / C: issue only):
-- Reasoning:
+- **Branch A (comment with evidence).**
+- **Reasoning:** the duplicate match is exact, the fix is already merged, the release is the only thing missing. Filing a new issue or PR would be redundant; commenting on #3880 with our specific angle (gc-managed shared dolt, distinct from Waldow's standalone server mode) adds a third-operator data point and a vote for #3870's release urgency. Day-12 "best-case negative outcome" applies.
 
-### If Branch A: comment
+### Branch A: comment posted
 
-- Existing issue URL:
-- Comment URL:
-- Comment summary:
-
-### If Branch B: PR
-
-- Branch name:
-- Lines changed:
-- `make check` result:
-- Test added:
-- PR URL:
-- Maintainer response (if any):
-
-### If Branch C: issue only
-
-- Issue URL:
-- Issue summary:
-- Open questions for maintainer:
+- **Existing issue:** [#3880](https://github.com/gastownhall/beads/issues/3880)
+- **Comment URL:** https://github.com/gastownhall/beads/issues/3880#issuecomment-4444090224
+- **Comment summary:** Adds the gc-managed-dolt-server angle (third operator), confirms the bd 1.0.3 symlink workaround, cross-references the root cause in `cmd/bd/auto_import_upgrade.go::maybeAutoImportJSONL` (matching Scott Hamilton's #3691 analysis), votes for #3870's release urgency, and includes meta-context about migration-shaped bugs across this city's three upstream surfaces.
 
 ### G1-G5 verdicts
 
-- G1 (regression reproducible on 1.0.4):
-- G2 (duplicate issue exists):
-- G3 (our angle is distinctive):
-- G4 (fix is ~20-50 lines):
-- G5 (review within 24h):
+- **G1 (regression reproducible on 1.0.4):** N/A — Day-19 evidence stands.
+- **G2 (duplicate issue exists):** **TRUE.** Whole thread family — #3880 (this bug), #3691 (the fix, merged), #3870 (release request), #3630 (regression source). The upstream community has thoroughly organized around this.
+- **G3 (our angle is distinctive):** **TRUE.** gc-managed shared dolt is distinct from Waldow's standalone bd shared-server. Same misfire, different surrounding stack. Worth a data point.
+- **G4 (PR ships in <2.5h):** **N/A — Branch A.** No PR needed; fix already merged.
+- **G5 (review within 24h):** **N/A — Branch A.** Comment not PR.
 
 ### v2 manual update
 
-- [ ] §22 footnote on bd-version-compatibility
-- [ ] §24 second worked example (if Branch B PR opens)
-- [ ] §22 meta-footnote: migration-as-recurring-bug-surface
+- [x] §22 footnote on bd-version-compatibility (~12 lines, with the workaround)
+- [ ] §24 second worked example — N/A (no new PR; the Branch A pattern is already covered by §24's Day-12 sub-section)
+- [x] §22 meta-footnote: migration-as-recurring-bug-surface (~15 lines)
 
 ### Surprises
 
-(things this plan got wrong, or new things surfaced)
+- **The Day-12 pattern fires again, exactly.** Day-12 found #1487 instead of opening a duplicate; Day-20 finds #3880 (+ #3691 fix + #3870 release request) instead of opening anything new. **TWO of the city's three upstream engagements have been comment-on-existing-thread, not file-new.** This is a real ratio: file-search-first is the right opening move every time.
+- **The fix already exists.** I came in expecting to write a 20-50 line PR with a guard function (Branch B). Reality: Scott Hamilton already wrote it (and a test) and got it merged. Our blocker is purely a release-cut question. The unbloated outcome of Day-20 is "wait for the release" — anticlimactic but correct.
+- **Three operators in one thread is a stronger signal than one PR.** When the fix is merged but unreleased, the bottleneck is maintainer attention to release-cutting. Comments accumulate priority. Our +1 to #3870 is more useful than another fix attempt.
+- **The duplicate-search budget paid off cleanly.** 5 keyword searches × 8 results each = 40 issue summaries to skim. Took ~10 minutes. Surfaced 4 directly-relevant tickets. Day-12's "cast a wide net" rigor is reproducibly valuable.
+- **The migration-shaped bug pattern is now three-for-three.** PR #2037 (controller-pack interface during v1.0 migration), PR #1848 (schema column rename), mc-mxl4vc (pre-0.56 → 1.0+ migration helper misfire). Worth a real §22 sub-pattern entry.
 
 ### Anything to promote
 
-(filled in after the day)
+- **§22 sub-pattern: "operational stress + version-skew = migration-shaped bugs"** — promoted in this commit. Three-for-three in two weeks.
+- **The duplicate-search-budget pattern** — 5 keyword × 8 results, 10 min, before any drafting. Worth promoting from Day-12 implicit to §24 explicit Step 1.5 ("Before writing any new issue or PR, do the wide search.").
+- **The "release-cut as bottleneck" framing** — when the fix is merged but unreleased, the productive contribution is +1ing the release issue, not writing more fix code. Worth a §24 footnote.
+- **The bd version-pin recipe** (`ln -sf /usr/local/Cellar/beads/1.0.3/bin/bd /usr/local/bin/bd`) — works as a generic pattern for "downgrade ONE component" recovery. Worth a §22 worked example beyond just this bd case.

@@ -1525,3 +1525,29 @@ If a pack-script bug "should be fixed" upstream but is still happening in your c
 The auto-revert is for `.gc/system/packs/` only. Pack-shipped scripts that the city has copied OUT of `.gc/system/packs/` into a writable location (e.g., the agents' working directories under `.gc/agents/`) are safe to edit — they're not reconciliation targets. Same for hand-written orders or formulas the user adds directly to `city.toml` — those live in `city.toml` and aren't touched.
 
 The asymmetry: **shipped packs are gc-managed (immutable); user-added orchestration is user-managed (mutable)**. The boundary is the `.gc/system/packs/` directory.
+
+## Day-20 extension: §27 applies to bd too
+
+§27's "embed-as-source-of-truth, binary-upgrade-is-the-fix" framing was first observed for `gc`'s pack embed. Day-20 found the same shape at a different layer: `bd 1.0.4`'s `cmd/bd/auto_import_upgrade.go::maybeAutoImportJSONL` has a regression where every write triggers a 2-min JSONL re-import attempt. The fix is merged upstream as PR [#3691](https://github.com/gastownhall/beads/pull/3691) but bd 1.0.4 was released before #3691 landed. **There's an outstanding release-cut request at [#3870](https://github.com/gastownhall/beads/issues/3870).** Until v1.0.5 ships, the workaround is the same "downgrade ONE component" pattern: `ln -sf /usr/local/Cellar/beads/1.0.3/bin/bd /usr/local/bin/bd`. The city's supervisor invokes bd via this symlink, so the switch is immediate and reversible.
+
+The general lesson: **for any tool whose binary embeds behavior (packs, migration helpers, etc.), version-pinning matters as much as the application binary itself.** When `brew install --HEAD <thing>` upgrades the primary tool, transitive dependency bumps can silently introduce regressions. The "downgrade ONE component" pattern lets you keep the fix you upgraded for (e.g. gc's SCRUB_FILTER fix) while reverting the broken one (bd 1.0.4).
+
+# 28. Migration as a recurring bug surface
+
+Three of three city-discovered upstream bugs in two weeks (2026-05-07 to 2026-05-13) are migration-shaped — they exist because something was renamed, restructured, or moved between versions, and code paths that referenced the old name kept doing so:
+
+1. **gascity PR [#2037](https://github.com/gastownhall/gascity/pull/2037)** (the user's, merged Day-13) — pack scripts couldn't find the dolt server state file because the canonical filename changed (`dolt-state.json`) but the bd-bridge filename (`dolt-provider-state.json`) wasn't always being written. The fix was a fallback chain in two shell scripts.
+2. **gascity PR [#1848](https://github.com/gastownhall/gascity/pull/1848)** (sjarmak's, received via Day-18 binary upgrade) — `jsonl-export.sh` SCRUB_FILTER referenced column `type`, which got renamed to `issue_type` in a schema migration. Every dolt query failed silently with `column "type" could not be found`.
+3. **beads [#3880](https://github.com/gastownhall/beads/issues/3880)** (commented Day-20, fix merged as [#3691](https://github.com/gastownhall/beads/pull/3691), release pending [#3870](https://github.com/gastownhall/beads/issues/3870)) — bd 1.0.4 auto-import migration helper assumes new path `.beads/embeddeddolt/` but cities using pre-0.56 path `.beads/dolt/` trigger a perpetual migration loop.
+
+The pattern: **operational stress + version-skew exposes migration-shaped bugs.** The diagnostic signal is usually the same shape — *"this is empty/missing"* because the code looks for the new thing while the data lives at the old thing. The diagnostic procedure is also similar:
+
+1. The error message names something. Grep the submodule for it.
+2. If the named thing exists upstream but the city doesn't have it → there's a propagation/migration gap.
+3. The fix usually has two shapes — either (a) the old path/name keeps being supported as a fallback (PR #2037 style) or (b) a guard skips the migration when the old data is detected (PR #3691 style).
+
+Cities running for any length of time accumulate version-skew naturally — packs install at city-init, binaries upgrade independently, data dirs get migrated piecemeal. This isn't a sign of poor city hygiene; it's the steady-state condition of a long-running stack. The §22 falsification ritual extends naturally: **before assuming a bug is "in your city," check whether your city is on a different version-skew slice than the upstream code expects.**
+
+**Sub-pattern: "downgrade ONE component" for in-place recovery.** When an upgrade introduces a regression, the productive operator move is often to revert *just* the broken component (e.g. symlink bd to 1.0.3) rather than full rollback. Keeps the gains from the upgrade, restores function from the regression. Cheap, reversible, doesn't lose data.
+
+**Sub-pattern: when the fix is merged-but-unreleased, +1 the release issue.** Day-20 found that PR #3691 (the fix) was merged but bd 1.0.4 was released earlier. The bottleneck wasn't writing code; it was maintainer attention to release-cutting. Comments on a release issue (#3870) accumulate priority. Worth a §24 footnote: "before opening a new PR, check whether the fix already exists and the bottleneck is just release timing."

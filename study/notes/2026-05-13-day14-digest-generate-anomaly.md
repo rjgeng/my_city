@@ -280,37 +280,56 @@ PR #2037 (`fix(packs): fallback to dolt-provider-state.json`) **merged 2026-05-1
 
 ### Pre-flight outcomes
 
-- Formula TOML contents (Step 1):
-- `graph.v2` contract behavior (Step 2):
-- `formula_v2` flag behavior + current value (Step 3):
-- Other formulas declaring `graph.v2` (H2 check):
+- **Formula TOML contents (Step 1):** Top-level: `version = 2`, `contract = "graph.v2"`, `[vars]` (period=daily, event_timeout=30s), and three `[[steps]]` with explicit `needs = [...]` dependency arrays (determine-period → collect-data → generate-and-send). Workload: deacon-dispatched periodic formula that walks every rig collecting bd activity, mails the digest to the mayor, archives as a `type:digest` bead. **Verdict: the `graph.v2` claim is substantive, not vestigial** — the `needs = [...]` fields are the DAG-signature of the v2 contract and would be either rejected or silently dropped under v1. This biases strongly toward Premise A (enable the flag) over Premise B (remove the declaration), pending Steps 2-3 verification.
+- **`graph.v2` contract behavior (Step 2):** Authoritative source is `internal/formula/compile.go:480-520`. The flag is `var formulaV2Enabled atomic.Bool` (load-time kill switch, snapshot at `toRecipe` start). The check in `isGraphWorkflow()` early-returns on v1 formulas (line 510) before consulting the flag — so **v1 formulas are completely unaffected by enabling formula_v2**. v2 formulas with the flag off get the exact `fmt.Errorf` string we see 17× in events.jsonl ("formula %q declares contract graph.v2 but formula_v2 is disabled..."). The dispatch layer (`cmd_convoy_dispatch.go:1578-1600`) handles "graph.v2-only roots alongside legacy roots" — v2 is additive, not breaking. **Implication: Premise A is clearly safe; enabling the flag only unblocks v2 formulas and leaves v1 formulas untouched.**
+- **`formula_v2` flag behavior + current value (Step 3):** Current value is **OFF (unset)** — neither `.gc/site.toml` nor `city.toml` mentions `formula_v2`. (Plan correction: site.toml in this city is the *rig-listing* file, not daemon config. The `[daemon]` block lives in `city.toml` lines 35-39.) The flag is wired in `cmd/gc/feature_flags.go:13` (`formula.SetFormulaV2Enabled(cfg.Daemon.FormulaV2)`). Backwards-compat: the deprecated `graph_workflows` key auto-promotes to `formula_v2` in `internal/config/compose.go:583` and `config.go:2994`. **Two non-obvious side effects** beyond "lets v2 formulas load":
+  - **(a) Default-prompt swap** (`cmd/gc/cmd_prime.go:296-313`): when `formula_v2` is on, agents *without* a custom `prompt_template` get `graph-worker.md`; when off, pool agents get `pool-worker.md`. Both files exist in `.gc/system/packs/core/assets/prompts/`. graph-worker.md explicitly tells the agent "work individual ready beads, do NOT use `bd mol current`" — a materially different working model from pool-worker's "find work, execute, exit" loop.
+  - **(b) Control-dispatcher injection** (`internal/config/config.go:2486-2510` `injectControlDispatcherAgents`): when on, new city-scoped and rig-scoped control-dispatcher agents + named sessions get auto-injected into the resolved config. This is invasive: new agents appear that didn't exist before.
+- **Other formulas declaring `graph.v2` (H2 check): H2 FALSIFIED. mol-digest-generate is NOT alone — 7 formulas across 4 packs declare `graph.v2`:**
+  - `core/mol-scoped-work.toml`
+  - `core/mol-review-quorum.toml`
+  - `gastown/mol-digest-generate.toml`
+  - `gastown/mol-refinery-patrol.toml` ← related to mc-uhvbb9 (refinery patrol watch hang)
+  - `gastown/mol-idea-to-plan.toml`
+  - `maintenance/mol-dog-reaper.toml`
+  - `dolt/mol-dog-compactor.toml`
+
+  Implication: enabling the flag unblocks 7 formulas, not just one. The pack authors clearly intend formula_v2 to be on — this is the design target. But (a)+(b) make the change non-trivial blast radius.
 
 ### Decision
 
-- Premise selected (A: enable flag / B: remove declaration / C: stop, file bead):
-- Reasoning:
+- **Premise selected: C — stop, file bead, document only.**
+- **Reasoning:** Step 3 surfaced two non-obvious side effects of enabling `formula_v2` (default-prompt swap + control-dispatcher injection) that the plan didn't anticipate. Premise B is wrong (would orphan the `needs = [...]` step deps). Premise A is the right *direction* (pack authors clearly intend it on — 7 formulas, matching graph-worker.md, dispatcher wiring all ship pre-built), but applying it cold flips agent behavior city-wide. Deferring until both worker prompts are read in full and the dispatcher-injection consequence is concretely audited. This matches the plan §4 STOP branch: *"if the fix's blast radius isn't understood, file a bead and stop."*
 
 ### Fix application
 
-- File edited:
-- Line changed:
-- Reload or restart:
-- Verification fire outcome (Step 5):
+- **None applied today.** Bead `mc-kh9qdv` filed instead (P2, labels: config, formula-v2, decision-deferred). City state unchanged from start of Day-14.
 
 ### H1-H5 verdicts
 
-- H1 (formula_v2 off in site.toml):
-- H2 (mol-digest-generate is the only graph.v2 declarer):
-- H3 (Premise A is right answer):
-- H4 (cooldown advances on failure — already confirmed §25):
-- H5 (config skew from early city-init):
+- **H1 (formula_v2 off in site.toml):** *Partially correct.* Flag IS off, but it lives in `city.toml` not `.gc/site.toml`. The plan's "probably under `[daemon]` section" framing was right; the file location was wrong.
+- **H2 (mol-digest-generate is the only graph.v2 declarer):** **FALSIFIED.** 7 formulas across 4 packs declare graph.v2. mol-digest-generate is just the only one wired up as a periodic order, which is why it's the only visible failure.
+- **H3 (Premise A is right answer):** **Partially correct.** A is the right direction but not safe to apply blind — the two side effects need to be understood first. Premise B is wrong outright. Outcome was Premise C (stop).
+- **H4 (cooldown advances on failure):** Confirmed in §25 already; the 17/17 pattern still holds.
+- **H5 (config skew from early city-init):** **Likely correct.** No older events.jsonl archive was checked, but the pack maintainers' pre-built v2 wiring (graph-worker.md prompt, dispatcher injection) makes the "city was init'd before formula_v2 was the design target" framing the most plausible explanation.
 
 ### v2 manual §25 appendix added
 
-- [ ] Error signature
-- [ ] Two-premise framing
-- [ ] Resolution
-- [ ] Contrast with mc-vj3hjk (exec-order failure mode)
+- [x] Error signature
+- [x] Two-premise framing (+ H2 falsification → 7 formulas blocked)
+- [x] Why we stopped instead of patching (the two side effects)
+- [x] Contrast with mc-vj3hjk (exec-order failure mode)
+
+### Surprises
+
+- **H2 was wrong by 7×.** Expected to find mol-digest-generate as the lone v2 declarer; found a whole class of v2 formulas waiting to come online. This changes the §25 framing from "fix one formula" to "the city is in an incomplete-bootstrap state."
+- **The flag is more than a kill switch.** The plan's framing of formula_v2 as "just controls whether v2 formulas compile" was incomplete. The two side effects (prompt swap, dispatcher injection) only show up when you grep the broader codebase — not in the one error-message-producing file.
+- **Orphan dolt from the shell crash.** Wasn't on the Day-14 radar but had to be cleaned up (PID 54087 graceful SIGTERM) before `bd dolt start` would succeed. Both state files (dolt-state.json, dolt-provider-state.json) were missing — neither the controller-managed canonical nor the bd-bridge file was written. PR #2037's fallback chain doesn't help here because nothing wrote either file; the fallback assumes at least one exists.
+
+### Anything to promote (beyond §25 appendix)
+
+- Possibly a §22 sub-pattern: "the error message is precise, but the fix's blast radius isn't" — when the obvious one-line fix touches a global flag with multiple side effects, the §22 pattern (verify premises) extends to verifying the *fix's* premises, not just the *bug's* premises.
+- The orphan-dolt + missing-state-files combination might be worth a §22 footnote — PR #2037 fixed the case where one state file is present; this is the case where neither is. The fallback chain has nothing to fall back to.
 
 ### Surprises
 

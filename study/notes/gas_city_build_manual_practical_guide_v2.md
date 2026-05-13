@@ -1417,3 +1417,24 @@ The §25 lesson: **for exec orders with per-script escalation, the event bus log
 4. Cross-check the script source for what *would* have escalated — escalation thresholds and side-effect targets live in the script, not the TOML.
 
 The bifurcation matters here: a *formula* order failure would have produced a wisp in the normal pool routing, with full chat/mail context. An *exec* order failure routes through the script's own escalation channel, which is far more idiosyncratic.
+
+### Worked example: `digest-generate` and the formula_v2 kill switch (Day-14, mc-kh9qdv)
+
+The formula-flavored counterpart to mc-vj3hjk. Day-13's events.jsonl mining surfaced `digest-generate` firing 17 times across 2026-05-07 to 2026-05-12 and failing 17 times — every fire produced the identical error:
+
+```
+formula "mol-digest-generate" declares contract graph.v2 but
+formula_v2 is disabled; enable [daemon] formula_v2 or remove
+the graph.v2 contract
+```
+
+Day-14 investigated. Two premises were on the table — **A:** enable `[daemon] formula_v2 = true` in `city.toml`; **B:** remove the `contract = "graph.v2"` declaration from `mol-digest-generate.toml`. Premise B was wrong outright: the formula uses `needs = [...]` step dependency arrays, which is the DAG-signature of the v2 contract; removing the declaration would orphan the deps. Premise A is the right *direction* but **applying it cold flips two things city-wide**:
+
+- **Default-prompt swap** (`cmd/gc/cmd_prime.go:296-313`): when `formula_v2` is on, agents without a custom `prompt_template` get `graph-worker.md`; when off, pool agents get `pool-worker.md`. The two prompts have materially different working models (graph-worker explicitly says "work individual ready beads, do NOT use `bd mol current`").
+- **Control-dispatcher injection** (`internal/config/config.go:2486-2510`): when on, `injectControlDispatcherAgents` auto-adds city-scoped + per-rig dispatcher agents and named sessions.
+
+And the city had **7 formulas across 4 packs** declaring `graph.v2`, not just one — `mol-scoped-work`, `mol-review-quorum`, `mol-digest-generate`, `mol-refinery-patrol`, `mol-idea-to-plan`, `mol-dog-reaper`, `mol-dog-compactor`. The pack authors clearly intended `formula_v2 = true` to be the design target; the city is in an *incomplete-bootstrap* state, not a broken state.
+
+The Day-14 decision was to **stop and file a bead** (`mc-kh9qdv`) rather than flip the flag without first reading both worker prompts in full and concretely auditing the dispatcher-injection consequence. This matches §22's pattern of "verify premises before fixing" — applied here to the *fix's* blast radius, not the *bug's* root cause. When the one-line config change ripples through prompt selection and agent injection, the surgical framing is wrong; treat it as a city migration, not a config patch.
+
+**Contrast with mc-vj3hjk (the exec-order failure mode):** mc-vj3hjk was a *script* failure inside a *pack-exec* order — the event bus said `order.failed` and the script escalated via `gc mail send mayor/` from a per-script consecutive-failure counter. Audit required reading the script's state file. **digest-generate is the inverse**: a *formula* failure at *compile-load* time — the error appears in events.jsonl directly with a precise message, no per-script state, no escalation. Audit is by `grep` in source code, not script state. The two together cover the two failure surfaces an order has: pack-exec-time and formula-load-time. Both fail loudly in their respective channels, but the diagnosis paths are completely different.

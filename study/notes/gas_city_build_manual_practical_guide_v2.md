@@ -1008,6 +1008,17 @@ This was the central lesson of Day-7, Day-8, and Day-9:
 
 This pairs with §22's "silent failure via `2>/dev/null`" principle: that one says "don't trust a script's masked output," this one says "don't trust your own past notes." The shape is the same — re-run the underlying evidence-gather, don't accept the summary.
 
+## Tour-day vs fix-day cadence (Day-21 observation)
+
+Tour days produce manual sections; fix days produce beads and PRs. Day-21's convoys tour produced §29 in ~45 min, no new beads filed, two test beads cleaned up. Day-19's bd-regression discovery produced mc-mxl4vc + a 250-line execution note + a follow-on Day-20 PR-or-comment decision. Same calendar day, completely different mental setups.
+
+The two shapes need different reads of "done":
+
+- **Tour day:** done when the manual has a credible new section. No fix required. The §22 falsification ritual still applies — re-verify the writeup's central claims against running state — but the output is documentation, not code.
+- **Fix day:** done when the bug is bounded (bead filed) OR the fix is shipping (PR open) OR the explicit decision is "stop and document why no fix." The §22 falsification ritual extends to the *fix's* premises (Day-14 / §22 sub-pattern).
+
+Alternating them prevents both burnout (all-fix is exhausting) and stagnation (all-tour misses real bugs). The retrospective's "user is fast on diagnosis, slow on just-run-it" pattern resolves cleanly via this split — diagnose on fix days, run experiments on tour days.
+
 # 23. Reconciler Diagnostics via `gc trace`
 
 When the controller feels slow, when the supervisor stderr emits `slow_storage_degraded` warnings, or when `gc shell` lags inside the mayor session, the first instinct is to grep supervisor logs. There's a better tool: `gc trace`. It reads persisted reconciler trace records from `.gc/runtime/session-reconciler-trace/segments/<day>/segment-N.jsonl`, and the relevant analysis is usually a one-shot query against historical data — no city restart, no live reproduction needed.
@@ -1076,6 +1087,28 @@ This single shape rule lets you classify a slow cycle in one look at its waterfa
 When you find a real bug in `study/gascity-src/` and want it merged upstream, this is the workflow. First written after PR #2037 (opened 2026-05-12, `fix(packs): fallback to dolt-provider-state.json`, **merged 2026-05-13** by maintainer sjarmak, merge commit `e1cee04`) — the first contribution from this city to land upstream — but generalized for any future fix.
 
 The whole thing is ~30 minutes wall-clock if Go is already installed and you're comfortable with `gh` CLI. Add ~5 min if Go isn't installed yet.
+
+## Step 1.5 — Duplicate-search budget (before any drafting)
+
+Before drafting any new issue or PR, cast a wide net at the upstream repo:
+
+```bash
+gh issue list --repo <upstream> --search "<keyword-1>" --state all --limit 8
+gh issue list --repo <upstream> --search "<keyword-2>" --state all --limit 8
+gh issue list --repo <upstream> --search "<keyword-3>" --state all --limit 8
+gh issue list --repo <upstream> --search "<keyword-4>" --state all --limit 8
+gh issue list --repo <upstream> --search "<keyword-5>" --state all --limit 8
+```
+
+5 keyword searches × 8 results each = ~40 issue summaries. ~10 min. Filter `--state all` (not just `open`) — closed issues with maintainer dispositions are valuable signal too. Also check PRs:
+
+```bash
+gh pr list --repo <upstream> --search "<keyword>" --state all --limit 10
+```
+
+Then read every plausibly-related thread fully before deciding whether to comment, file new, or ship a PR. Validated Day-12 (#1487) and Day-20 (#3880): **2 of the city's 3 upstream engagements were comment-on-existing-thread, not file-new.** The duplicate-search budget is reproducibly more valuable than draft-first — finding the existing thread isn't a setback ("best-case negative outcome" per Day-12); it means the upstream community has already organized around the right concern, and your data point adds value where maintainers are already looking.
+
+When the fix is already merged-but-unreleased (Day-20's PR #3691 case), the bottleneck isn't writing more code — it's maintainer attention to release-cutting. +1 the release-request issue (#3870-style) instead of opening a new PR.
 
 ## Pre-flight: read what the project expects
 

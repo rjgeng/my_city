@@ -265,6 +265,7 @@ Skip. mc-f7u8fz is a §22-style falsification investigation; mayor delegation do
 - **Supervisor uptime:** PID 13654, 4:39:46 elapsed (since Day-18 gc start)
 - **New convoys since Day-22:** none new (only mc-a0oj6 still open from Day-8)
 - **order.failed count delta:** **+43 failures** since Day-22's claimed baseline. Day-22 said 38 (36 pre-Day-18 + 2 post-pre-symlink); current = **81**. So **43 failures accumulated** between Day-22 evening and Day-23 evening (~24 hours).
+  - **[2026-05-14 correction — see §9 Day-23 resume]** This claim is WRONG. The "+43" mixes two different windows: Day-22's 38 was "failures since Day-18 start (2026-05-12 00:00)", while the Day-23 reading of "81" was all-time. Apples-to-oranges. Real delta since Day-22's actual sweep moment (2026-05-13 11:08 PT) is **+4 failures**: 3 mol-dog-jsonl `exit status 1` + 1 dolt-health `context canceled` (gc supervisor blip). The +43 read should never have been published without first checking what window Day-22 was measuring.
 - **mc-f7u8fz state:** OPEN. Title: "session reconciler cycle p50=27s — pre-reconcile dolt I/O dominates tick body". P3 (not P2 as I assumed in the plan).
 
 ### Day-22 baseline correction (caught during Day-23 Step 1)
@@ -276,39 +277,107 @@ Day-22's "0 order.failed events since 11:08 PT (~12 hours of clean operation)" c
 
 Plus the 41 more that have accumulated since 13:13 PT through Day-23 start (PT ~18:30). The pattern looks like **mol-dog-jsonl failing periodically** even with bd 1.0.3 — suggesting either a different bug than the SCRUB_FILTER one (PR #1848 was for SCRUB_FILTER specifically), or the bd 1.0.3 symlink isn't a complete fix.
 
+> **[2026-05-14 correction]** "+41 more accumulated" is wrong — it was the apples-to-oranges artifact from the +43 read. Actual count from 13:13:52 PT through Day-23 resume (2026-05-14 morning): **+2 events** — `dolt-health context canceled` at 16:03 PT (gc supervisor blip), and one more `mol-dog-jsonl:rig:co_shipping exit status 1` overnight (06:58:56 PT 5/14). The "mol-dog-jsonl failing periodically" framing was directionally right but the magnitude was 10× exaggerated.
+
 **To do on Day-23 resume:**
 - Categorize the 43 new failures by subject (likely heavy mol-dog-jsonl skew)
 - Compare to pre-symlink-switch failures: same orders? different orders?
 - Decide: is this a NEW bug (file bead), an ALREADY-KNOWN bug (mc-mxl4vc fallout), or expected (some orders fail under specific conditions)?
 - Then resume Step 2 (arm tracing for mc-f7u8fz measurement) once the failure-baseline question is resolved.
 
+### Day-23 resume (2026-05-14 AM) — failure-baseline question resolved
+
+Worked the to-do list in order. All three items closed; bead filed; tracing not yet armed.
+
+**1. Categorize the new failures (real delta = +4, not +43):**
+
+| Timestamp PT | Subject | Message |
+|---|---|---|
+| 2026-05-13 12:35:26 | `mol-dog-jsonl:rig:hello-world` | `exit status 1` |
+| 2026-05-13 13:13:52 | `mol-dog-jsonl` | `exit status 1` |
+| 2026-05-13 16:03:49 | `dolt-health` | `context canceled` |
+| 2026-05-14 06:58:56 | `mol-dog-jsonl:rig:co_shipping` | `exit status 1` |
+
+3-of-4 are mol-dog-jsonl `exit status 1`; the 1 dolt-health is supervisor-blip noise (`context canceled` = order cancelled mid-flight, not a real failure).
+
+**2. Compare to pre-symlink-switch:** symlink mtime confirms switch happened at **2026-05-13 11:26 PT** (target = bd 1.0.3). Pre-switch (2026-05-09 → 11:26 PT 5/13): 8 mol-dog-jsonl "failures", ALL `context canceled` (4) or `signal: killed` (4), clustered around gc shutdown moments. **Zero `exit status 1` events for any order, ever, before the symlink switch.** Post-switch: 3 mol-dog-jsonl `exit status 1`, scattered across 3 different rigs (hello-world, HQ, co_shipping). New failure mode that didn't exist before bd 1.0.3.
+
+**3. Decision: new bead, not mc-mxl4vc fallout.** Filed **`mc-w9iua4` [BUG] P3** — `mol-dog-jsonl exit 1: concurrent push race against jsonl-archive.git`. Root cause identified with high confidence from the events.jsonl + git log of `.gc/jsonl-archive.git`:
+  - Sibling rigs push to the same local bare repo concurrently
+  - At the hello-world 12:35:26 PT failure, a sibling commit landed at the EXACT same second (records=21738) — hello-world's push lost the ref-lock race
+  - At the co_shipping 06:58:56 PT failure, two sibling commits succeeded 5s and 6s later (within 1s of each other) — the lock-race is at the edge of git's ability to sequentialize concurrent local pushes
+  - No DOG_DONE nudge from any failed run → all three died before step 4 (report)
+  - Failure durations 19–26s land in the upper end of successful runs' 9–43s range → consistent with reaching the push step and failing there
+  - `mol-dog-jsonl.toml:152-154`'s push step has no retry, no lock-wait, no backoff
+- **Why now:** bd 1.0.3 stabilized the supervisor → orders ran more often → the latent push race surfaced. Pre-switch, mc-mxl4vc thrash was killing orders before they could race. **The race existed all along; bd 1.0.3 made it observable.**
+- **Why P3:** low rate (~1 in 30-50 dispatches), self-healing (next cycle catches up the archive), no data loss.
+
 ### Surprises
 
 - **Day-22's "0 failures / 12hr baseline" claim was inaccurate.** The Day-22 sweep counted at one moment; failures continued accumulating before I committed. Worth a §22 footnote: "when stamping a baseline, re-count at the moment of final commit, not at the start of the sweep."
+  - **[2026-05-14 sharpened]** The deeper lesson isn't only "re-count at moment of final commit" — it's also **"name the window precisely."** Day-22 reported `since Day-18 = 38`; Day-23 read it as "current total = 38" and computed +43 against an all-time number (81). Both numbers were correct individually; the comparison was nonsense. §22 footnote candidate: *"every count is a (metric, window) pair. Publishing a number without its window is the bug; subtracting numbers from different windows is the lie."*
 - **mol-dog-jsonl is failing again.** Despite Day-19's bd 1.0.3 symlink fix. Either a separate bug, or the symlink fix is partial. Day-23 resume should resolve.
+  - **[2026-05-14 resolved]** Separate bug. Filed as `mc-w9iua4`. The bd 1.0.3 fix was complete *for what it fixed* (bd-write corruption). What it exposed — by stabilizing the supervisor enough for orders to run frequently — was a pre-existing race in mol-dog-jsonl's step 3 (`git push`). §22 footnote candidate: *"a primary regression's fix often unmasks a latent secondary bug. The fix is not over until you've measured the post-fix steady state for at least 24h — bugs that were hidden by noise are now visible signal."*
 
-### Step 2: arm tracing
+### Step 2: arm tracing — UNNEEDED (data was already flowing)
 
-- Arms successfully registered:
-- `gc trace status` output:
-- Wait duration:
-- New segment files since arms:
-- G1 verdict (trace data flows):
+**Pre-arm check surfaced the surprise:** `find .gc/runtime/session-reconciler-trace/segments` showed `2026/05/14/segment-000001.jsonl` was being actively written (mtime 6 min ago at first check, 10MB+ for 5/13's segment). `gc trace status` returned `arms: null` but segments contained 131 `cycle_result` records for the current day and 3332 across the month.
 
-### Step 3a OR 3b: measurement
+- **Arms successfully registered:** N/A — never armed. Existing data was sufficient.
+- **G1 verdict (trace data WILL flow this time):** TRUE, with a stronger finding than predicted — **arming is not required in HEAD-caa44a4**. The Day-19 conclusion that "trace_source: always_on was removed and explicit arming is required" was wrong, or has been re-fixed since. Either way: trace data flows by default under HEAD-caa44a4 + bd 1.0.3. §23 needs an update.
 
-- Approach used (3a / 3b):
-- Records mined:
-- p50 / p95 / max / min:
-- Comparison to Day-6 baseline (27s) and Day-19 pre-upgrade (129s):
-- Branch determined (A / B / C):
+### Step 3a: measurement — Branch C (persists)
+
+**Approach used:** Step 3a (mine cycle latency from existing segments). Skipped Step 3b entirely.
+
+**Records mined (today, 5/14, tick-phase only, n=131):**
+
+| metric | value | versus Day-6 baseline (27s) | versus Day-19 pre-upgrade (129s) |
+|---|---|---|---|
+| min | 32,031 ms | 1.2× | 0.25× |
+| **p50** | **59,760 ms (~60s)** | **2.2× WORSE** | 0.46× (54% improvement) |
+| p95 | 86,362 ms | 3.2× | 0.67× |
+| max | 105,082 ms | 3.9× | 0.81× |
+
+**Multi-day trend (tick-phase p50, ms):**
+
+| Date | n | min | p50 | max | gc/bd state |
+|---|---|---|---|---|---|
+| 2026-05-09 | 1133 | 44 | **38,428** | 244,258 | older gc, before bd-thrash |
+| 2026-05-10 | 209 | 36,284 | **114,777** | 234,893 | bd 1.0.4 starting to bite |
+| 2026-05-12 | 17 | 51,968 | **158,704** | 264,054 | peak pre-upgrade pain |
+| 2026-05-13 | 258 | 39,229 | **65,609** | **1,576,958** (26 min!) | upgrade + symlink mid-day |
+| 2026-05-14 | 133 | 32,031 | **59,479** | 105,082 | post-fix steady state |
+
+- **Comparison to Day-6 (27s):** still 2.2× worse — the issue persists.
+- **Comparison to Day-19 (129s):** 54% better — the upgrade + symlink fix DID help.
+- **Variance collapse:** 5/13 max was 26 minutes (1577s); today's max is 1.75 minutes (105s). Worst-case behavior dropped by an order of magnitude even though median is similar to 5/13's. The bd 1.0.3 symlink converted a fat-tailed distribution into a uniform one.
+- **Branch determined:** **C (persists).** p50 ≥ 30s per the plan's branch rule. mc-f7u8fz stays OPEN.
+
+### G1-G3 verdicts
+
+- **G1 (trace data flows):** TRUE with a stronger finding — *no arming required* under HEAD-caa44a4. Day-19's "must arm explicitly" framing was wrong or has been re-fixed upstream.
+- **G2 (p50 has improved significantly, prediction = [10s, 50s]):** PARTIALLY TRUE. Improved (-54% from 129s) but landed at ~60s, just outside the predicted upper bound. The improvement is real; the prediction was slightly optimistic.
+- **G3 (branch C is correct):** TRUE. p50 ≥ 30s + the original "pre-reconcile dolt I/O dominates tick body" claim is consistent with the persistent latency. Day-9's p50 of 38s shows the issue isn't introduced by recent gc — it pre-dates the bd thrash.
+
+### Surprises (Step 2/3)
+
+- **Trace data flows without arming.** This was the assumed-broken thing on Day-19, and it's just working. Either the bd 1.0.4 thrash was eating the trace writes alongside everything else, or the trace subsystem was already self-healing once the supervisor stabilized. Either way: §23's "arming required" framing needs a footnote: *"under HEAD-caa44a4, the session-reconciler-trace stream is on by default once the supervisor is stable. Arming is for non-default templates."*
+- **Variance collapse is the unmissed story.** Pre-upgrade, the reconciler had a fat-tailed distribution — most ticks completed in ~100s but occasional ones blew up to 26 minutes. Post-upgrade, everything is in [32s, 105s]. The user-visible impact is huge (no more "stuck" ticks) even though median improved only modestly. *§22 footnote candidate: "tail latency is the user experience; report it alongside p50."*
+- **p50 is converging slowly toward Day-6's baseline, not snapping back.** 158s → 66s → 60s. The trend over the 3 days post-upgrade is flattening. Without further fixes, this may be the new steady state — meaning Day-6's 27s was a regression that has only been *half* recovered, not fully.
 
 ### Step 4: §23 update
 
-- HEAD-caa44a4 trace changes documented:
-- New behavior surfaced:
+- **HEAD-caa44a4 trace changes documented:** Trace data flows without explicit arming. `gc trace status` returns `arms: null` but `cycle_result` records are still emitted to per-day segment files at `.gc/runtime/session-reconciler-trace/segments/YYYY/MM/DD/segment-NNNNNN.jsonl`. Arming is required for *additional* per-template detail, not for the base cycle_result stream.
+- **New behavior surfaced:** the cycle_result record has a `fields.phase` field (`"startup"` for one-off, `"tick"` for steady-state). Filter on `phase == "tick"` to get clean steady-state numbers. Also `completion_status == "completed"` — incomplete/aborted ticks would have different status (none observed today).
 
-### Step 5: branch action
+### Step 5: branch action (C — persists)
+
+Plan called for: investigate root cause of pre-reconcile dolt I/O dominance, OR file an upstream issue with the new measurement.
+
+**Recommendation:** comment on mc-f7u8fz with the multi-day trend table + variance-collapse finding, then defer further work. The bug is real (still 2.2× worse than baseline) but variance has collapsed enough that user impact is much lower. Spending a fix-day on it before tail-latency monitoring exists would be premature — we don't know which percentile to target.
+
+The variance-collapse pattern argues for a different priority: **add p95/max monitoring to the city's observability before chasing more latency reduction**. A bug fix that improves p50 by 10s but raises p95 by 50s would be a regression invisible under median-only reporting.
 
 - (A) mc-f7u8fz closed reason:
 - (B) New narrower bead ID:

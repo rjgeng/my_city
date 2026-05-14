@@ -2,7 +2,7 @@
 
 - **Plan authored:** 2026-05-14 (Day-23 evening, immediately after Day-23 close)
 - **Planned execution:** 2026-05-18
-- **Status:** Plan only.
+- **Status:** **EXECUTED 2026-05-14 (4 days early). Branch C taken. PR #2136 open. 24h soak begins 2026-05-14T22:16:17Z UTC (2026-05-14 15:16 PT). Day-25 reads soak result.**
 
 Day-23 surfaced `mc-w9iua4` — `mol-dog-jsonl` exits 1 intermittently (~1 in 30-50 dispatches) because step 3 (`git push origin main` to `.gc/jsonl-archive.git`) races against concurrent sibling pushes from other rigs. Evidence was strong but circumstantial: sibling commits landed at the exact same second as failures (`12:35:26 PT 5/13`), and two sibling commits landed 1s apart right after another failure (`06:59:01/02 PT 5/14`). No DOG_DONE nudge from any failed run → all three died before step 4. Failure durations (19-26s) sit in the upper end of successful runs' 9-43s range, consistent with reaching the push step.
 
@@ -225,68 +225,104 @@ Schedule recommendation: start in morning so the 4h trace window fits within the
 
 ## 8. Execution log
 
-(filled in as work happens)
+### Step 1: pre-flight + engdocs read ✅
 
-### Step 1: pre-flight + engdocs read
+- **gc version:** HEAD-caa44a4 ✓
+- **gc trace status:** `arms: null`, head_seq=126529 (confirms Day-23 finding: data flows without arming)
+- **mc-w9iua4 state:** OPEN, P3, BUG ✓
+- **Pre-arm order.failed count:** 84 (Day-23 ended at 83; +1 overnight — the `mol-dog-compactor exit 1` at 08:04:16 PT, a NEW failure mode coinciding with my bd_create write contention; first compactor exit-1 ever observed)
+- **Supervisor state surprise:** PID changed (13654 → 782, ~3h20m uptime). Supervisor restarted overnight. Doesn't block plan; trace pipeline auto-resumes.
+- **engdocs read takeaways:**
+  1. `gc trace reasons --template <T> --since <window>` is a high-signal SUMMARY view we never used. §23 candidate addition.
+  2. The "What To Send An Agent" handoff checklist (lines 59-75) is useful for cross-session work. §23 candidate.
+  3. Template naming: `gastown.dog` does NOT exist. Dogs run inside `gastown.deacon`. Plan's `--template gastown.dog` was wrong; corrected to `--template gastown.deacon`.
 
-- gc version:
-- gc trace status:
-- mc-w9iua4 state:
-- Pre-arm order.failed count:
-- engdocs read takeaways:
+### Step 2: arms registered ✅
 
-### Step 2: arms registered
+- **Arms active:** 1 (gastown.deacon, manual, level=detail, --for 4h)
+- **Pre-arm timestamp:** 2026-05-14T16:30:52Z UTC (09:30 PT)
+- **Pre-arm event count:** 84
+- **Expires:** 2026-05-14T20:30:52Z UTC (13:30 PT)
 
-- Arms active:
-- Pre-arm timestamp:
-- Pre-arm event count:
+### Step 3: failure capture ✅ — Branch C
 
-### Step 3: failure capture
+- **Captured (count + timestamps):** **ZERO mol-dog-jsonl exit-1 events in window**
+- **Stderr contents:** N/A — nothing captured
+- **Branch determined:** **C (no failure captured → ship speculative)**
+- **Why nothing captured:** mol-dog-jsonl didn't fire AT ALL during the 4h window. Today's bursts: ~06:45 + ~07:15-07:48 (before arm), then 14:14-14:52 (after arm). Inter-burst gap is 6-7h; arm landed in the gap.
+- **Post-arm fire activity (informational):** 14 fires in 38 min during 14:14-14:52 PT — all clean (0 failures). Today's failure rate is much lower than Day-23 implied. Realistic estimate: 1-2 failures per day, clustered in bursts.
 
-- Captured (count + timestamps):
-- Stderr contents:
-- Branch determined (A / B / C):
+### Step 4: formula edit ✅
 
-### Step 4: formula edit
+- **File:** `study/gascity-src/examples/gastown/packs/maintenance/assets/scripts/jsonl-export.sh`
+- **Function:** `push_archive_main()` (lines 413-515 → now 413-553)
+- **Lines changed:** +38, -2
+- **Shape:** 3-attempt retry loop with 1-5s jittered sleep; re-fetch + re-rebase before each retry; preserves `consecutive_push_failures` escalation semantic.
+- **Discovery during edit:** the push step is NOT prose-only LLM-interpreted code (as I initially worried from reading the formula .toml). It's real bash. The .toml description IS executable infrastructure — the deacon runs the embedded scripts directly.
 
-- Diff summary:
-- Lines changed:
+### Step 5: make check ✅ (with caveat)
 
-### Step 5: make check
+- **Result:** focused tests pass (`go test ./examples/gastown/... -run "Jsonl|PushArchive|PushFailure"` → 107s, all green); `go vet ./...` clean
+- **Wall clock:** ~2 min for focused; full `make test` had 3 pre-existing macOS-environment failures (verified by stash-restore: failures persist without my edit). Skipped full `make check` (~45min lint) since the edit is bash-only.
+- **Pre-existing failures (NOT mine):**
+  - `TestResolveDoltConnectionTargetManagedCity_EnvOverride` — `bind: 127.0.0.2 not assignable` (macOS-only)
+  - `TestDoctorScriptDoesNotCreditSharedPrefixBackupToDatabase`
+  - `TestCityRuntimeReloadDrainShortCircuitsOnTickContextCancel`
+- **PR body discloses these honestly; CI is the source of truth for full make check.**
 
-- Result:
-- Wall clock:
-- Anything failed:
+### Step 6: PR ✅
 
-### Step 6: PR
+- **Branch name:** `rjgeng/fix/mol-dog-jsonl-push-race`
+- **PR URL:** https://github.com/gastownhall/gascity/pull/2136
+- **Title:** `fix(maintenance): retry mol-dog-jsonl push on concurrent ref-update race` (68 chars)
+- **First-pass review status:** awaiting CI + maintainer
+- **Branch setup gotcha (logged for §24):** submodule was checked out on Day-22's PR branch `rjgeng/docs/convoy-help-clarify` when I started editing. Had to stash, branch off origin/main, re-apply. Lesson: `git status -sb` before any edit — confirm branch.
 
-- Branch name:
-- PR URL:
-- Title:
-- First-pass review status:
+### Step 7: soak begins ✅
 
-### Step 7: soak begins
+- **Post-fix timestamp:** 2026-05-14T22:16:17Z UTC (2026-05-14 15:16 PT)
+- **Post-fix event count:** 84
+- **Soak ends timestamp:** 2026-05-15T22:16:17Z UTC (2026-05-15 15:16 PT — 24h from now)
+- **Note:** the fix is in the PR branch, NOT in the running city (city runs from installed `gc` binary against the formula at HEAD-caa44a4). So the soak validates the EXISTING latent rate WITHOUT the fix. To test the fix proper, would need to install the patched script into the running city — out of scope for Day-24 since fix lives in the PR branch.
+- **What 24h soak actually measures:** baseline failure rate of mol-dog-jsonl under HEAD-caa44a4 + bd 1.0.3 with the current (unfixed) script. Day-23 saw 3 failures in 18h (rate ~1/6h). If Day-25 24h soak shows similar or lower, the rate estimate is confirmed. If 0 failures, the rate is actually much lower (consistent with today's "14 clean fires in a burst" observation).
 
-- Post-fix timestamp:
-- Post-fix event count:
-- Soak ends timestamp:
+### Step 8: §22 footnote fold (deferred)
 
-### Step 8: §22 footnote fold (optional)
-
-- Footnote added:
-- Lines:
+- Not done today. Three §22 candidates queued for a future tour-day:
+  1. *"Every count is a (metric, window) pair"* (from Day-23)
+  2. *"Tail latency is the user experience"* (from Day-23)
+  3. *"Before reconciler-incident investigation, read engdocs/contributors/reconciler-debugging.md first"* (from Day-23 meta-reflection)
+  4. *"When designing a trace-capture window, measure firing cadence first — bursts beat rate"* (from Day-24)
 
 ### G1-G4 verdicts
 
-- G1 (≥1 exit-1 captured):
-- G2 (stderr is push race):
-- G3 (retry drops to 0):  (requires Day-25)
-- G4 (PR merges within 7 days):  (requires Day-25+)
+- **G1 (≥1 exit-1 captured in 4h):** **FALSIFIED — twice over.** Arm window missed bursts entirely; even when bursts run today, failure rate is 0% (14 clean fires). Real rate is much lower than predicted.
+- **G2 (stderr matches push race):** N/A — never captured stderr. The fix is speculative per Branch C.
+- **G3 (retry drops 24h rate to 0):** TBD on Day-25. Caveat: 24h soak measures the running city, which doesn't have the fix installed. The fix is only in the PR branch.
+- **G4 (PR merges within 7 days):** TBD — PR #2136 just opened. PR #2037 took 32h; bandwidth on PR #2088 from Copilot was minutes. sjarmak's cadence for small fixes has been fast.
 
 ### Surprises
 
-(filled in as encountered)
+1. **Pre-flight surprise: NEW failure mode** — first-ever `mol-dog-compactor exit 1` at 08:04:16 PT, coinciding with my mc-w9iua4 bd_create write contention. May be one-shot from dolt write race, or a separate latent bug. Per anti-plan ("don't merge scopes"), left as a watch item; no new bead filed. **If it recurs in the soak window, file a separate bead Day-25.**
+2. **The arm completely missed the firing pattern.** I'd budgeted for "rate ~1/6h" but actual mode is burst-every-6-7h. Branch C trigger fired correctly but exposed a meta-issue: my plan's predicted-yield math was wrong.
+3. **Template-naming wasn't in the plan.** Plan said `gastown.dog`; actual is `gastown.deacon`. Pre-flight investigation caught this before arming. Suggests adding a "verify template names exist before arming" step to §23.
+4. **Bash style of jsonl-export.sh is rigorous.** Has nested helpers (`truncate_stderr_context`, `record_archive_push_failure`), uses `local`, captures stderr to named vars, returns 1/0. Easy to extend.
+5. **Submodule was on Day-22's PR branch, not main.** Almost committed my fix on top of Day-22's docs commits. Caught by `git status -sb`.
 
 ### Anything to promote
 
-(filled in at end)
+- **§23 update candidates** (queue for Day-26+ tour-day):
+  - Add `gc trace reasons` as the summary view alongside `gc trace show`
+  - Add the "What To Send An Agent" handoff checklist (or pointer to engdocs)
+  - Add a "verify template exists" pre-arm check
+- **§24 update candidate:**
+  - "Verify branch before editing submodule code" — `git status -sb` first. Stash + branch-from-origin if wrong.
+- **§22 footnote (queued, see Step 8):** rate vs mode for trace windows; bursts beat averages.
+
+### What the day actually produced
+
+- ✅ PR #2136 (the deliverable)
+- ✅ mc-w9iua4 updated with Day-24 note + PR URL
+- ✅ Day-24 doc execution log (this section)
+- ❌ Real root-cause confirmation (Branch A) — fell through to Branch C
+- ⏸ 24h soak begun but measures the unpatched city, not the patched fix — limited validation value

@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-15 (Day-25 afternoon, after soak read + first run of the soak/PR runbook)
+**Last updated:** 2026-05-15 (Day-25 — soak read + nudge posted on PR #2088)
 
 ---
 
@@ -30,10 +30,10 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - **State:** OPEN, all CI passing, mergeable, 1 review request pending
 - **Day filed:** Day-22 (2026-05-13)
 - **Size:** +110 -15
-- **Activity:** Created 2026-05-13T20:36Z; last content event 2026-05-13T21:02Z (rjgeng "addressed Copilot regen-cli.md feedback"); **content-idle ~41h+ as of Day-25 read — past 1.5× cadence threshold**
+- **Activity:** Created 2026-05-13T20:36Z; addressed Copilot feedback 2026-05-13T21:02Z; **nudge posted 2026-05-15T21:25Z UTC** (single-line per tracker protocol)
 - **Bead lineage:** none — surfaced organically during Day-22 sweep
-- **Last action by us:** addressed Copilot's "also regen `docs/reference/cli.md`" feedback; pushed commit `513aaec`
-- **Day-25 update:** past nudge threshold. Recommend single-line "any thoughts on this?" comment on next session if still idle.
+- **Last action by us:** posted single-line nudge: *"Friendly ping — any thoughts on this when you get a chance? Happy to revise anything that needs revision."* → https://github.com/gastownhall/gascity/pull/2088#issuecomment-4463768343
+- **Day-25 update:** nudge posted; per protocol DO NOT nudge again. Wait it out.
 
 **What it does:** removes the misleading "Simple/Complex convoys" framing from `cmd_convoy.go` `Long:` description; adds an explicit disambiguation paragraph stating convoys ≠ workflows.
 

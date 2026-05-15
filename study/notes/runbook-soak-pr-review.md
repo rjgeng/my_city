@@ -55,13 +55,22 @@ grep -c '"type":"order.failed"' .gc/events.jsonl
 
 ### A3. Sanity check — did the relevant order actually fire during the window?
 
-**Why this check exists:** Day-24 surfaced the lesson that 0 captures in a trace window is meaningless if the order didn't fire in that window (mol-dog-jsonl fires in 6-7h bursts, not uniformly). Confirm the soak covered actual fires before trusting the failure count.
+**Why this check exists:** Day-24 surfaced the lesson that 0 captures in a trace window is meaningless if the order didn't fire in that window. Confirm the soak covered actual fires before trusting the failure count.
+
+**⚠ Important:** `gc events --since` **truncates non-failure event types** to a recent window (Day-25 finding — see Lessons table). For historical fire counts that go back ≥ a few hours, **grep events.jsonl directly** instead. Also note the parenthesization in the jq `select` — the first version below has a subtle bug that silently misclassifies records.
 
 ```bash
-gc events --type order.fired --since 25h 2>/dev/null \
-  | jq -r 'select(.subject | startswith("<SUBJECT_PREFIX>") and (.ts >= "<SOAK_START_TS>")) | .ts' \
+# Correct: parens around the first conjunct so jq evaluates startswith against
+# .subject, then ANDs the resulting boolean with the .ts comparison.
+grep '"type":"order.fired"' .gc/events.jsonl 2>/dev/null \
+  | jq -r 'select((.subject | startswith("<SUBJECT_PREFIX>")) and (.ts >= "<SOAK_START_TS>")) | .ts' \
   | wc -l
 ```
+
+**Bug to avoid** (left here as a reference — see Lessons): writing this as
+`select(.subject | startswith("...") and (.ts >= "..."))` makes jq pipe `.subject`
+into `startswith("...") and (.ts >= "...")`, which tries to index a string with
+`.ts` and errors silently in many records. Always parenthesize the first conjunct.
 
 **Interpretation:**
 
@@ -183,3 +192,6 @@ You can run sections A and B before the full 24h window closes for an interim si
 | 2026-05-14 | Soak window must cover actual order-fire activity, not just elapsed time. Add the A3 sanity check before trusting failure count. | Day-24 G1 falsification |
 | 2026-05-14 | The city runs the unpatched code while the fix is in the PR branch only. Soak measures baseline, NOT fix effectiveness. Real validation requires upstream merge + city upgrade + fresh soak. | Day-24 Step 7 caveat |
 | 2026-05-14 | Wait 1.5× repo cadence before nudging. Single-line nudges only; never twice. | Upstream tracker protocol |
+| 2026-05-15 | `gc events --since <window>` truncates non-failure event types (order.fired, bead.updated, etc.). The CLI surface optimizes for live streams, not history. For historical queries (especially count-of-fires sanity checks), grep events.jsonl directly. Day-25 read returned "16 fires" via `gc events` and "298 fires" via grep — same window, ~19× difference. | Day-25 A3 retrieval |
+| 2026-05-15 | jq `select(.subject \| startswith("...") and (.ts >= "..."))` has a subtle bug — jq pipes `.subject` into the full `startswith() and (.ts >= "...")` expression, which tries to index a string with `.ts`. **Always parenthesize the first conjunct:** `select((.subject \| startswith("...")) and (.ts >= "..."))`. | Day-25 A3 jq error |
+| 2026-05-15 | "Burst pattern" frame can be an artifact of API truncation. If you only see N fires in a non-uniform pattern, verify against raw event log before claiming firing cadence. | Day-25 retraction of Day-24's burst-pattern claim |

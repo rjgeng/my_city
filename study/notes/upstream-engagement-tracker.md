@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-14 (Day-24 evening, immediately after PR #2136 opened)
+**Last updated:** 2026-05-15 (Day-25 afternoon, after soak read + first run of the soak/PR runbook)
 
 ---
 
@@ -16,6 +16,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 | PRs awaiting maintainer | 2 (#2088, #2136) |
 | Issues commented (downstream-symptom data) | 2 (#1487, beads-#3880) |
 | Engagement cadence | ~1 per 4.4 days (since Day-11) |
+| Local-only beads (linked to upstream items) | 2 active (mc-w9iua4, mc-mxl4vc) + 1 new (mc-1zccc2, separate surface) |
 | Repos touched | 2 (gascity, beads) |
 
 ---
@@ -29,9 +30,10 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - **State:** OPEN, all CI passing, mergeable, 1 review request pending
 - **Day filed:** Day-22 (2026-05-13)
 - **Size:** +110 -15
-- **Activity:** Created 2026-05-13T20:36Z; last content event 2026-05-13T21:02Z (rjgeng "addressed Copilot regen-cli.md feedback"); content-idle ~24h+ as of 2026-05-14 PT
+- **Activity:** Created 2026-05-13T20:36Z; last content event 2026-05-13T21:02Z (rjgeng "addressed Copilot regen-cli.md feedback"); **content-idle ~41h+ as of Day-25 read — past 1.5× cadence threshold**
 - **Bead lineage:** none — surfaced organically during Day-22 sweep
 - **Last action by us:** addressed Copilot's "also regen `docs/reference/cli.md`" feedback; pushed commit `513aaec`
+- **Day-25 update:** past nudge threshold. Recommend single-line "any thoughts on this?" comment on next session if still idle.
 
 **What it does:** removes the misleading "Simple/Complex convoys" framing from `cmd_convoy.go` `Long:` description; adds an explicit disambiguation paragraph stating convoys ≠ workflows.
 
@@ -49,12 +51,13 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 - **Repo:** `gastownhall/gascity`
 - **URL:** https://github.com/gastownhall/gascity/pull/2136
-- **State:** OPEN, all CI passing, mergeable
+- **State:** OPEN, CI green (74 SUCCESS + 22 SKIPPED — skipped are path-filtered, expected for bash-only change), mergeable=UNKNOWN (transient GitHub state, not a real conflict)
 - **Day filed:** Day-24 (2026-05-14, ~25 min after open)
 - **Size:** +38 -2 (single bash file: `examples/gastown/packs/maintenance/assets/scripts/jsonl-export.sh`)
-- **Activity:** Created 2026-05-14T22:13Z; Copilot review posted at 2026-05-14T22:19Z (benign summary, no actionable asks)
-- **Bead lineage:** mc-w9iua4 (P3 BUG, OPEN in HQ)
+- **Activity:** Created 2026-05-14T22:13Z; Copilot review posted at 2026-05-14T22:19Z (benign summary, no actionable asks). **Content-idle ~16h as of Day-25 read — within 1.5× cadence threshold.**
+- **Bead lineage:** mc-w9iua4 (P3 BUG, OPEN in HQ — updated 2026-05-15 with Day-25 soak result)
 - **Last action by us:** opened the PR; nothing since
+- **Day-25 update:** soak result observed before fix lands — 2 mol-dog-jsonl exit-1 / 298 fires = 0.67% failure rate. PR fix should drop this to near-zero. Real validation needs upstream merge + city upgrade + post-install soak.
 
 **What it does:** wraps the single-shot `git push origin main` in `push_archive_main()` with a 3-attempt retry loop, 1-5s jittered sleep, re-fetch + re-rebase between attempts. Preserves `consecutive_push_failures` / `MAX_PUSH_FAILURES` escalation semantic.
 
@@ -113,6 +116,20 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - [ ] When v1.0.5 ships: plan city upgrade per mc-mxl4vc body's next-steps; validate the empty-DB guard works; close mc-mxl4vc.
 
 **Risk:** Low. Workaround is stable. Deadline pressure: none.
+
+---
+
+## Pre-upstream watch list
+
+Items that are LOCAL beads only — not yet upstream, but could become upstream contributions after investigation. Listed here so they don't get lost.
+
+### mc-1zccc2 — `mol-dog-compactor exit 1 — two consecutive daily runs failed (5/14, 5/15)`
+
+- **Local bead only** — no upstream item yet
+- **Surface:** different from mc-w9iua4. Compactor does dolt history flattening, not git push. Distinct root cause.
+- **Pattern:** daily order, ~08:00 PT, exit-1 on last 2 fires (5/14 + 5/15)
+- **Next:** Day-26 trace-arm `gastown.deacon` at ~07:55 PT to capture next 08:00 fire's stderr
+- **Becomes upstream when:** root cause is identified + fix shape is clear
 
 ---
 

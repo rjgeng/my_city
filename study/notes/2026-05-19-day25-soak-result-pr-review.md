@@ -3,7 +3,7 @@
 - **Plan authored:** 2026-05-14 (Day-24 evening, immediately after Day-24 close)
 - **Planned execution:** 2026-05-19
 - **Earliest sensible execution:** 2026-05-15 15:16 PT (when the 24h soak window closes)
-- **Status:** Plan only.
+- **Status:** **EXECUTED 2026-05-15 at 14:11 PT (preliminary read at 95% of window — 22h55m of 24h). 3 failures observed; mc-w9iua4 stays OPEN; mc-1zccc2 filed for mol-dog-compactor recurrence; runbook bugs fixed.**
 
 Day-24 shipped PR #2136 (retry-with-backoff for `mol-dog-jsonl` push race) and started a 24h soak baseline. Day-25 reads what happened in both lanes — the soak measurement and the upstream review — then decides whether mc-w9iua4 can close.
 
@@ -91,35 +91,45 @@ Depending on what Day-25 reads:
 
 ## 6. Execution log
 
-(filled in on 2026-05-15 or whenever Day-25 actually runs)
+Executed 2026-05-15 14:11 PT (4 days early). Soak window at 22h55m (95% of 24h, effectively canonical).
 
 ### Soak result
 
-- Window start: 2026-05-14T22:16:17Z
-- Window end:
-- Failures in window:
-  - mol-dog-jsonl: ____
-  - mol-dog-compactor: ____
-  - other: ____
+- **Window start:** 2026-05-14T22:16:17Z UTC (15:16 PT 5/14)
+- **Window end:** 2026-05-15T21:11Z UTC (14:11 PT 5/15) — preliminary read at 95%
+- **Failures in window: 3 total** (count 84 → 87)
+  - **mol-dog-jsonl: 2** (06:11 PT HQ + 09:23 PT co_store)
+  - **mol-dog-compactor: 1** (08:04 PT — RECURRENCE of Day-24 watch item)
+  - other: 0
+- **mol-dog-jsonl fires in window: 298** (continuous ~every 5 min, NOT in 6-7h bursts as Day-24 incorrectly framed)
+- **mol-dog-jsonl observed failure rate: 0.67%** (2/298)
 
 ### PR #2136 status
 
-- state:
-- review decision:
-- CI status:
-- merge decision:
+- **state:** OPEN
+- **review decision:** none yet (only Copilot review from 22:19Z 5/14)
+- **CI status:** 74 SUCCESS, 22 SKIPPED (skipped are path-filtered, expected for bash-only change to maintenance/) — effectively all green
+- **merge decision:** mergeable=UNKNOWN (transient GitHub state, not a real conflict)
+- **Maintainer engagement:** none yet (~16h idle, within 1.5× cadence threshold)
 
 ### G3 / G4 verdicts
 
-- G3 (24h rate validation):
-- G4 (PR merges <7 days):
+- **G3 (24h rate validation):** UNVERIFIABLE on this soak. The city runs the UNPATCHED jsonl-export.sh; observed 0.67% rate reflects the pre-fix baseline, not the fix. Real G3 needs post-install soak after upstream merge.
+- **G4 (PR merges <7 days):** TBD. At 16h with no maintainer engagement. PR #2037's cadence was 32h; we're inside that band.
 
 ### Decisions made
 
-- mc-w9iua4 status:
-- New beads filed:
-- Any §22/§23/§24 candidates to queue:
+- **mc-w9iua4 status:** stays OPEN. Day-25 note appended (with retraction of Day-24's burst-pattern claim).
+- **New beads filed: `mc-1zccc2`** — `mol-dog-compactor exit 1 — two consecutive daily runs failed (5/14, 5/15)`, P3 BUG. Distinct surface from mc-w9iua4 (no git push). Compactor fires ~daily 08:00 PT; failed both 5/14 and 5/15 ~08:04 PT. Day-26 will arm trace at 07:55 PT to capture stderr from the next fire.
+- **PR #2088 nudge:** PAST threshold (41h+ idle vs 18h threshold). Recommend single-line "any thoughts on this?" comment in next session. Not done in this read to keep the run focused; queued.
+- **§22 candidates surfaced today (2 new):**
+  1. *"`gc events --since` truncates non-failure event types. For historical queries (especially count-of-fires sanity checks), grep events.jsonl directly. The CLI surface optimizes for live streams, not history."*
+  2. *"Watch the 2nd and 3rd run of a newly-enabled order. The first run going clean doesn't mean the order works — formula_v2-era code paths often have latent issues that only surface on subsequent runs."* (from mc-1zccc2 lineage)
+- **Runbook fix:** added jq parenthesization warning + "events.jsonl direct beats gc events --since" lesson + 3 new entries to the Lessons table.
 
 ### Surprises
 
-(filled in as encountered)
+1. **mol-dog-jsonl fires 298×/day, not in bursts.** Day-24's "6-7h bursts" framing was an artifact of `gc events --since` truncation. The order fires continuously every ~5 minutes. **This is a significant retraction** — Day-24's whole "trace arm missed the burst" framing rested on this wrong pattern.
+2. **mol-dog-compactor recurrence at the same minute two days running** (08:04 PT 5/14 AND 5/15). Day-24's "one-shot from my bd_create write contention" theory is dead. Real, daily, reproducing failure. Filed `mc-1zccc2`.
+3. **jq parenthesization bug in the runbook itself.** Caught only when running the procedure — `select(.subject | startswith("...") and (.ts >= "..."))` errored silently on most records because jq piped `.subject` into the whole conjunction. The fix is wrapping the first conjunct in parens. **Runbook updated to flag this.**
+4. **PR #2136 mergeable=UNKNOWN** initially looked alarming but turned out to be transient GitHub state; CI is effectively all-green (22 "non-success" are all path-filtered SKIPPED checks).

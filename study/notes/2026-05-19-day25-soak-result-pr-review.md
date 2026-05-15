@@ -3,7 +3,7 @@
 - **Plan authored:** 2026-05-14 (Day-24 evening, immediately after Day-24 close)
 - **Planned execution:** 2026-05-19
 - **Earliest sensible execution:** 2026-05-15 15:16 PT (when the 24h soak window closes)
-- **Status:** **EXECUTED 2026-05-15 at 14:11 PT (preliminary read at 95% of window — 22h55m of 24h). 3 failures observed; mc-w9iua4 stays OPEN; mc-1zccc2 filed for mol-dog-compactor recurrence; runbook bugs fixed.**
+- **Status:** **EXECUTED 2026-05-15. Preliminary read at 14:11 PT (95%, 22h55m); canonical re-read at 16:43 PT (24h28m). Canonical result: 4 failures (3 mol-dog-jsonl + 1 mol-dog-compactor); mol-dog-jsonl real rate 0.87% (3/343). mc-w9iua4 stays OPEN; mc-1zccc2 filed; runbook bugs fixed.**
 
 Day-24 shipped PR #2136 (retry-with-backoff for `mol-dog-jsonl` push race) and started a 24h soak baseline. Day-25 reads what happened in both lanes — the soak measurement and the upstream review — then decides whether mc-w9iua4 can close.
 
@@ -96,13 +96,16 @@ Executed 2026-05-15 14:11 PT (4 days early). Soak window at 22h55m (95% of 24h, 
 ### Soak result
 
 - **Window start:** 2026-05-14T22:16:17Z UTC (15:16 PT 5/14)
-- **Window end:** 2026-05-15T21:11Z UTC (14:11 PT 5/15) — preliminary read at 95%
-- **Failures in window: 3 total** (count 84 → 87)
-  - **mol-dog-jsonl: 2** (06:11 PT HQ + 09:23 PT co_store)
+- **Window end:** 2026-05-15T22:16:17Z UTC (15:16 PT 5/15) — canonical 24h mark
+- **Preliminary read at 14:11 PT (22h55m / 95%):** 3 failures, 298 fires, 0.67% rate
+- **Canonical re-read at 16:43 PT (24h28m):** 4 failures, 343 fires, **0.87% rate**
+- **Failures in canonical window: 4 total** (count 84 → 88)
+  - **mol-dog-jsonl: 3** (06:11 PT HQ + 09:23 PT co_store + 14:52 PT co_shipping)
   - **mol-dog-compactor: 1** (08:04 PT — RECURRENCE of Day-24 watch item)
   - other: 0
-- **mol-dog-jsonl fires in window: 298** (continuous ~every 5 min, NOT in 6-7h bursts as Day-24 incorrectly framed)
-- **mol-dog-jsonl observed failure rate: 0.67%** (2/298)
+- **mol-dog-jsonl fires in canonical window: 343** (continuous ~every 5 min, NOT in 6-7h bursts as Day-24 incorrectly framed)
+- **mol-dog-jsonl observed failure rate: 0.87%** (3/343)
+- **Cross-rig distribution:** 3 mol-dog-jsonl failures spread across HQ + co_store + co_shipping — not rig-specific, consistent with original mc-w9iua4 evidence.
 
 ### PR #2136 status
 

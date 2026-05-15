@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-15 (Day-25 — soak read + nudge posted on PR #2088)
+**Last updated:** 2026-05-15 (Day-25 — canonical 24h soak re-read + nudge posted on PR #2088)
 
 ---
 
@@ -57,7 +57,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - **Activity:** Created 2026-05-14T22:13Z; Copilot review posted at 2026-05-14T22:19Z (benign summary, no actionable asks). **Content-idle ~16h as of Day-25 read — within 1.5× cadence threshold.**
 - **Bead lineage:** mc-w9iua4 (P3 BUG, OPEN in HQ — updated 2026-05-15 with Day-25 soak result)
 - **Last action by us:** opened the PR; nothing since
-- **Day-25 update:** soak result observed before fix lands — 2 mol-dog-jsonl exit-1 / 298 fires = 0.67% failure rate. PR fix should drop this to near-zero. Real validation needs upstream merge + city upgrade + post-install soak.
+- **Day-25 update (canonical 24h mark):** baseline rate 3 mol-dog-jsonl exit-1 / 343 fires = **0.87%**. Cross-rig: HQ + co_store + co_shipping. PR fix should drop this to near-zero. Real validation needs upstream merge + city upgrade + post-install soak. At upper edge of the "1-3 failures" decision bucket — one more failure in a comparable window triggers "reconsider fix shape" branch.
 
 **What it does:** wraps the single-shot `git push origin main` in `push_archive_main()` with a 3-attempt retry loop, 1-5s jittered sleep, re-fetch + re-rebase between attempts. Preserves `consecutive_push_failures` / `MAX_PUSH_FAILURES` escalation semantic.
 

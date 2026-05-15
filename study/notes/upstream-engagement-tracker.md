@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-15 (Day-25 — canonical 24h soak re-read + nudge posted on PR #2088)
+**Last updated:** 2026-05-15 (Day-25 — canonical soak re-read + nudge + PR #2088 conflict resolved via rebase)
 
 ---
 
@@ -27,13 +27,14 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 - **Repo:** `gastownhall/gascity`
 - **URL:** https://github.com/gastownhall/gascity/pull/2088
-- **State:** OPEN, all CI passing, mergeable, 1 review request pending
+- **State:** OPEN, **MERGEABLE** (re-rebased onto latest main 2026-05-15T23:56Z after conflict on auto-generated `cli.md`)
 - **Day filed:** Day-22 (2026-05-13)
-- **Size:** +110 -15
-- **Activity:** Created 2026-05-13T20:36Z; addressed Copilot feedback 2026-05-13T21:02Z; **nudge posted 2026-05-15T21:25Z UTC** (single-line per tracker protocol)
+- **Size:** +110 -15 (rebased; original commits replaced)
+- **HEAD SHA:** `ca41269` (post-rebase)
+- **Activity:** Created 2026-05-13T20:36Z; Copilot feedback addressed 2026-05-13T21:02Z; nudge posted 2026-05-15T21:25Z; **conflict resolved + force-push 2026-05-15T23:56Z**
 - **Bead lineage:** none — surfaced organically during Day-22 sweep
-- **Last action by us:** posted single-line nudge: *"Friendly ping — any thoughts on this when you get a chance? Happy to revise anything that needs revision."* → https://github.com/gastownhall/gascity/pull/2088#issuecomment-4463768343
-- **Day-25 update:** nudge posted; per protocol DO NOT nudge again. Wait it out.
+- **Last action by us:** rebased onto origin/main, dropped stale cli.md regen commit, regenerated cli.md fresh via `go run ./cmd/genschema`, force-pushed (`+ 513aaecd...ca412694`)
+- **Day-25 update:** post-rebase mergeable. Nudge stands; per protocol DO NOT nudge again. Wait it out.
 
 **What it does:** removes the misleading "Simple/Complex convoys" framing from `cmd_convoy.go` `Long:` description; adds an explicit disambiguation paragraph stating convoys ≠ workflows.
 

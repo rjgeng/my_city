@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-15 (Day-25 — canonical soak re-read + nudge + PR #2088 conflict resolved via rebase)
+**Last updated:** 2026-05-16 (Day-26 EOD — **PR #2088 APPROVED by csells**; #2136 still idle; Day-26 trace-capture arm window missed → re-arm Day-27)
 
 ---
 
@@ -27,14 +27,15 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 - **Repo:** `gastownhall/gascity`
 - **URL:** https://github.com/gastownhall/gascity/pull/2088
-- **State:** OPEN, **MERGEABLE** (re-rebased onto latest main 2026-05-15T23:56Z after conflict on auto-generated `cli.md`)
+- **State:** OPEN, **MERGEABLE, APPROVED by csells** (2026-05-16T00:01Z, on post-rebase HEAD `ca41269`). `reviewDecision` empty because csells is CONTRIBUTOR not maintainer — still awaiting merge by someone with write access.
 - **Day filed:** Day-22 (2026-05-13)
 - **Size:** +110 -15 (rebased; original commits replaced)
 - **HEAD SHA:** `ca41269` (post-rebase)
-- **Activity:** Created 2026-05-13T20:36Z; Copilot feedback addressed 2026-05-13T21:02Z; nudge posted 2026-05-15T21:25Z; **conflict resolved + force-push 2026-05-15T23:56Z**
+- **Activity:** Created 2026-05-13T20:36Z; Copilot feedback addressed 2026-05-13T21:02Z; nudge posted 2026-05-15T21:25Z; **conflict resolved + force-push 2026-05-15T23:56Z**; **csells "docs lgtm" comment 2026-05-15T23:17Z then APPROVED on rebased HEAD 2026-05-16T00:01Z**
 - **Bead lineage:** none — surfaced organically during Day-22 sweep
 - **Last action by us:** rebased onto origin/main, dropped stale cli.md regen commit, regenerated cli.md fresh via `go run ./cmd/genschema`, force-pushed (`+ 513aaecd...ca412694`)
 - **Day-25 update:** post-rebase mergeable. Nudge stands; per protocol DO NOT nudge again. Wait it out.
+- **Day-26 check (2026-05-16 EOD):** **csells APPROVED** at 2026-05-16T00:01Z on post-rebase HEAD `ca41269` (initial check missed this because the `comments` JSON view doesn't include reviews — must use `reviews`/`latestReviews` fields). csells is `authorAssociation: CONTRIBUTOR`, so `reviewDecision` remains empty — approval is meaningful peer signal but does NOT auto-merge. Still waiting on maintainer with write access (e.g. sjarmak, who merged #2037).
 
 **What it does:** removes the misleading "Simple/Complex convoys" framing from `cmd_convoy.go` `Long:` description; adds an explicit disambiguation paragraph stating convoys ≠ workflows.
 
@@ -59,6 +60,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - **Bead lineage:** mc-w9iua4 (P3 BUG, OPEN in HQ — updated 2026-05-15 with Day-25 soak result)
 - **Last action by us:** opened the PR; nothing since
 - **Day-25 update (canonical 24h mark):** baseline rate 3 mol-dog-jsonl exit-1 / 343 fires = **0.87%**. Cross-rig: HQ + co_store + co_shipping. PR fix should drop this to near-zero. Real validation needs upstream merge + city upgrade + post-install soak. At upper edge of the "1-3 failures" decision bucket — one more failure in a comparable window triggers "reconsider fix shape" branch.
+- **Day-26 check (2026-05-16 EOD):** still OPEN/MERGEABLE, `updatedAt` 2026-05-14T22:28Z (unchanged since open). Zero comments ever. Content-idle ~48h — at the threshold for a "ready when you are" nudge on Day-27 if still silent.
 
 **What it does:** wraps the single-shot `git push origin main` in `push_archive_main()` with a 3-attempt retry loop, 1-5s jittered sleep, re-fetch + re-rebase between attempts. Preserves `consecutive_push_failures` / `MAX_PUSH_FAILURES` escalation semantic.
 
@@ -129,7 +131,7 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 - **Local bead only** — no upstream item yet
 - **Surface:** different from mc-w9iua4. Compactor does dolt history flattening, not git push. Distinct root cause.
 - **Pattern:** daily order, ~08:00 PT, exit-1 on last 2 fires (5/14 + 5/15)
-- **Next:** Day-26 trace-arm `gastown.deacon` at ~07:55 PT to capture next 08:00 fire's stderr
+- **Next:** Day-27 (2026-05-17) re-arm `gastown.deacon` at ~07:45 PT — Day-26 arm window was missed (Branch B). Next predicted fire ~08:03–08:06 PT (+1 min/day drift).
 - **Becomes upstream when:** root cause is identified + fix shape is clear
 
 ---

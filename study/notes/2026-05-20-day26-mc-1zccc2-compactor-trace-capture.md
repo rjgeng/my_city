@@ -188,57 +188,63 @@ If all 3 hold → Branch A. If G1/G2 fail → Branch B. If G1/G2 hold but G3 fai
 
 ## 6. Execution log
 
-(filled in on 2026-05-16 morning when Day-26 actually runs)
+(filled in 2026-05-17 — Day-26 slipped one day; 5/16 arm window was missed, re-armed and executed 5/17)
 
 ### Step 1: pre-flight
 
-- gc version:
-- mc-1zccc2 state:
-- Pre-arm timestamp:
-- Pre-arm order.failed count:
+- gc version: HEAD-caa44a4
+- mc-1zccc2 state: OPEN (P3 BUG)
+- Pre-arm timestamp: 2026-05-17T13:19:37Z (06:19 PT)
+- Pre-arm order.failed count: 101
 
 ### Step 2: arm registered
 
-- Arm timestamp:
-- Window:
-- Templates armed:
+- Arm timestamp: 2026-05-17T13:19:37Z
+- Window: 2h30m, expires 2026-05-17T15:49:37Z (08:49 PT) — covers predicted 08:05 fire + ~45min slop
+- Templates armed: gastown.deacon (detail level)
 
 ### Step 3: fire observation
 
 - Predicted fire window: 08:00-08:10 PT
-- Actual fire ts:
-- Actual failure ts (if any):
-- Fire-to-fail interval:
+- Actual fire ts: ~08:04-08:06 PT (G1 hit — within predicted band)
+- Actual failure ts (if any): immediate, same cycle (exit-1 in seconds, not minutes)
+- Fire-to-fail interval: ≪1 minute (script-side abort, not dolt-execution-side timeout)
 
 ### Step 4: failure analysis
 
-- Stderr captured (yes/no):
-- Stderr content:
-- Failing step identified:
-- Cycle tick_id:
+- Stderr captured (yes/no): **No via trace; Yes via manual repro**
+- Stderr content: `compact: db=hq HEAD changed before flatten want_HEAD=<X> got_HEAD=<Y> — aborting before reset` (on local bundled gascity-src; upstream main post-#2225 produces the post-flatten value-hash variant)
+- Failing step identified: `compact/run.sh:962-968` (on bundled version) / line 1227-1243 area (post-#2225 main) — check-then-act race on hq HEAD between preflight gather and DOLT_RESET
+- Cycle tick_id: not captured (trace scope mismatch — see Step 7 lessons)
 
 ### Step 5: classification
 
-- Bucket (dolt / script / config / external):
-- Supporting evidence:
+- Bucket: **script-side** (check-then-act race in shell script, not dolt-side / config-side / external)
+- Supporting evidence: 4 quiet DBs (cs, ship, hw, auth) compact fine on every run; only hq fails. hq is the busiest DB (mail/beads/wisps/sessions all commit constantly). The race window is between `head_commit "$db"` capture and `DOLT_RESET --soft + DOLT_COMMIT`. Same class as mc-w9iua4 push race (PR #2136).
 
 ### Step 6: decision
 
-- Next action:
-- Upstream item filed (URL):
+- Next action: fix bead filed + upstream PR opened (against the plan's "Day-26 = diagnostic only" anti-plan — user-authorized mid-day)
+- Upstream item filed (URL): https://github.com/gastownhall/gascity/pull/2316 (`fix(dolt): retry preflight when HEAD races on busy DBs in gc dolt compact`)
+- Fix bead: mc-4m2da1 (links mc-1zccc2 diagnosis → PR)
 
 ### G1-G3 verdicts
 
-- G1 (fire happens 08:00-08:10 PT):
-- G2 (exits 1):
-- G3 (trace shows stderr):
+- G1 (fire happens 08:00-08:10 PT): **HIT** — fire observed in band (matched +1 min/day drift extrapolation)
+- G2 (exits 1): **HIT** — order.failed observed, consistent with prior 2 daily runs
+- G3 (trace shows stderr): **FALSIFIED** — `gastown.deacon` arm captured controller cycle events but not subprocess stderr. Trace template scope is controller cycles, not order subprocess output. **Branch C** outcome per §2 — fell back to manual repro for the stderr.
 
 ### Surprises
 
-(filled in as encountered)
+1. **Upstream main moved overnight (5/16 13:52 PT).** PR #2225 (julianknutsen) refactored `flatten_database()` and incidentally removed the pre-flatten HEAD-check that mc-4m2da1's fix shape was written against. Race still present post-#2225; symptom shifted from explicit "HEAD changed before flatten" abort → "value hash changed after flatten" quarantine. Same exit-1 outcome from order's POV.
+2. **The Day-25 prediction of "Day-26 is diagnostic-only" held during the arm window but cracked during analysis.** Manual repro produced a fix shape so clean that we shipped the PR same-day (per user decision). The anti-plan was correct in principle but the diagnosis surfaced a low-effort fix.
+3. **`gastown.deacon` trace template doesn't capture subprocess stderr.** The §27 observability gap. Was expected to capture per-step trace records from dogs running inside the deacon, but only got cycle-tick records.
 
 ### What the day actually produced
 
-- mc-1zccc2 update:
-- Upstream items filed:
-- Lessons captured:
+- mc-1zccc2 update: appended classification (script-side race), root cause (compact/run.sh check-then-act on hq HEAD), and §27 observability gap note. Acceptance criteria 1+2 met; 3 advanced via PR; 4 still pending.
+- Upstream items filed: PR #2316 (gastownhall/gascity); fix bead mc-4m2da1 (HQ).
+- Lessons captured (rolled into `study/notes/runbook-soak-pr-review.md` Lessons table):
+  1. `gastown.deacon` trace template scope = controller cycles, NOT subprocess stderr. For order-dispatcher subprocess stderr, fall back to manual repro or wait for stderr-plumbing into events.jsonl.
+  2. Diagnostic-day anti-plan ("don't open a PR Day-N") is a default, not a rule. If the diagnosis surfaces a low-effort fix matching a proven prior pattern (#2136 retry-with-backoff), shipping same-day is acceptable.
+  3. Upstream-state freshness check: before writing a fix against a stale-bead's line reference, `git fetch origin main` and confirm the target structure is unchanged. Saved this PR from being filed against a phantom function shape.

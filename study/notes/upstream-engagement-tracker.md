@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-16 (Day-26 EOD — **PR #2088 APPROVED by csells**; #2136 still idle; Day-26 trace-capture arm window missed → re-arm Day-27)
+**Last updated:** 2026-05-17 (Day-26 — **PR #2316 opened** for mc-1zccc2 compactor HEAD race; #2088 + #2136 still idle awaiting maintainer)
 
 ---
 
@@ -10,13 +10,13 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 | Metric | Value |
 |---|---|
-| Total engagements | 5 (3 PRs + 2 issue comments) |
-| PRs opened | 3 |
+| Total engagements | 6 (4 PRs + 2 issue comments) |
+| PRs opened | 4 |
 | PRs merged | 1 (#2037) |
-| PRs awaiting maintainer | 2 (#2088, #2136) |
+| PRs awaiting maintainer | 3 (#2088, #2136, #2316) |
 | Issues commented (downstream-symptom data) | 2 (#1487, beads-#3880) |
-| Engagement cadence | ~1 per 4.4 days (since Day-11) |
-| Local-only beads (linked to upstream items) | 2 active (mc-w9iua4, mc-mxl4vc) + 1 new (mc-1zccc2, separate surface) |
+| Engagement cadence | ~1 per 3.8 days (since Day-11) |
+| Local-only beads (linked to upstream items) | 3 active (mc-w9iua4 → #2136, mc-mxl4vc, mc-1zccc2 → #2316 via fix bead mc-4m2da1) |
 | Repos touched | 2 (gascity, beads) |
 
 ---
@@ -80,6 +80,30 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - [ ] If merged + city upgrades: validate with another 24h post-install soak; close mc-w9iua4 if 0 failures.
 
 **Risk:** Low-medium. Functional correctness is solid. Style might draw a "switch to $RANDOM" nit. Worst case: maintainer asks for unit test, +30min to add.
+
+---
+
+### PR #2316 — `fix(dolt): retry preflight when HEAD races on busy DBs in gc dolt compact`
+
+- **Repo:** `gastownhall/gascity`
+- **URL:** https://github.com/gastownhall/gascity/pull/2316
+- **State:** OPEN, MERGEABLE
+- **Day filed:** Day-26 (2026-05-17, ~14:33 PT)
+- **Size:** +57 -10 (single bash file: `examples/dolt/commands/compact/run.sh`)
+- **HEAD SHA:** `ffa66a04`
+- **Bead lineage:** mc-1zccc2 (diagnosis) → mc-4m2da1 (fix bead)
+
+**What it does:** wraps the pre-flatten preflight gather + post-preflight HEAD comparison in a 3-attempt retry loop with jittered 1-5s sleep, fixing the `mol-dog-compactor` exit-1 failures on busy `hq` (3 consecutive daily fires 5/14, 5/15, 5/16). Quiet DBs take the fast path through attempt 1.
+
+**Note on upstream timing:** opened the day after #2225 (julianknutsen, 2026-05-16) refactored this same function and incidentally removed the prior pre-flatten HEAD-check. The race is still present post-#2225 — symptom shifted from "HEAD changed before flatten" abort to "value hash changed after flatten" quarantine; PR re-introduces a HEAD-stability check at the relocated preflight site.
+
+**Next action:**
+- [ ] **Wait 24h** for maintainer review (julianknutsen most likely given #2225 ownership).
+- [ ] If silent at 48h: leave a brief "any thoughts?" comment per §24 playbook.
+- [ ] If review requests changes (e.g., merge with #2225 patterns, fold into transaction): address inline.
+- [ ] Watch `mol-dog-compactor` order outcomes locally — 3-5 daily fires post-install will be a clear soak signal.
+
+**Risk:** Medium. Re-introduces a check the maintainer just removed during refactor; reviewer may push back asking for a different shape (transaction-level guard, or different retry budget). Functional correctness should be solid (mirrors #2136 pattern, syntax-checked).
 
 ---
 

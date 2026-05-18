@@ -162,47 +162,84 @@ If all 3 hold → Branch B (modal). G1 falsified → Branch A. G2 falsified (com
 
 (filled in 2026-05-18 morning when Day-27 executes)
 
-### Step 1: pre-flight
+### Step 1: pre-flight (2026-05-18 ~04:00 PDT)
 
-- gc version:
-- Open beads:
-- Pre-day branch state:
+- Local main: up to date with origin (no unpushed commits)
+- Open beads (relevant): mc-mxl4vc, mc-1zccc2, mc-4m2da1, mc-w9iua4 — all 4 OPEN, unchanged
+- Pre-day branch state: clean
 
-### Step 2: PR states snapshot
+### Step 2: PR states snapshot (2026-05-18 ~04:00 PDT, ~11:00Z)
 
-- #2088:
-- #2136:
-- #2316:
+- **#2088:** OPEN, MERGEABLE, `reviewDecision=""`. APPROVED by csells 2026-05-16T00:01Z (still latest). `updatedAt` 2026-05-16T00:01:45Z — **unchanged since Day-26.** ~2.5 days post-approval idle.
+- **#2136:** OPEN, MERGEABLE, `reviewDecision=""`. Only Copilot bot comment (2026-05-14T22:19Z). `updatedAt` 2026-05-14T22:28Z — **unchanged since open.** ~93h content-idle at decision time.
+- **#2316:** OPEN, MERGEABLE, `reviewDecision=""`. Only Copilot bot comment (2026-05-17T21:36Z, benign). `updatedAt` 2026-05-17T22:09:12Z — **unchanged since open.** ~13h old at decision time.
 
 ### Step 3: compactor fire observation
 
-- Actual fire ts:
-- Actual fail ts:
-- Error message class:
-- 4th-consecutive confirmed (yes/no):
+- **Actual fire ts:** 2026-05-18T08:09:17.62-07:00 (predicted 08:05-08:08 PT; +2 min over yesterday rather than +1)
+- **Actual fail ts:** 2026-05-18T08:12:04.59-07:00
+- **Duration:** ~2m47s (vs ~23s on 5/17 — **7× longer**)
+- **Error message class:** `"exit status 1"` (controller surface only — stderr not in events.jsonl per Day-26 lesson; not re-armed per anti-plan #1)
+- **4th-consecutive confirmed (yes/no):** **YES** — G2 satisfied
+- **Auto-tracking bead created:** `mc-o5fhwm` (P2, controller-owned, closed; labels `exec-failed`, `order-run:mol-dog-compactor`, `order-tracking`)
+
+Reference: 5/17 fire fired 2026-05-17T08:07:20-07:00, failed 2026-05-17T08:07:43-07:00 (+1min drift continuing → predicted 5/18 ~08:08 PT; **actual was 08:09:17 = +2min, model needs ±2min tolerance**).
+
+**Duration variance is the new observation worth thinking about.** Same exit-1 surface message, but compactor reached ~167s of work before failing today vs ~23s yesterday. Suggests HEAD-race window varies with hq's contemporaneous write load — race is timing-dependent, not deterministic-instant. Strengthens retry-with-backoff (PR #2316) over alternatives.
 
 ### Step 4: nudge decisions
 
-- #2088:
-- #2136:
-- #2316:
+- **#2088:** NO — post-APPROVAL is wait-only.
+- **#2136:** YES — nudge sent 2026-05-18T11:03:58Z (https://github.com/gastownhall/gascity/pull/2136#issuecomment-4477023113). Past 1.5× cadence threshold. G3 satisfied.
+- **#2316:** NO — <24h old at decision time. Too fresh.
 
 ### Step 5: bead updates
 
-- mc-1zccc2:
-- mc-4m2da1:
-- Other:
+- **mc-1zccc2:** appended Day-27 datum (fire/fail ts, duration variance observation, PR #2316 status, plan-grep lesson). Bead stays OPEN pending upstream merge.
+- **mc-4m2da1:** no update — PR #2316 received no human review activity today.
+- **Other:** Issue #1487 detected closed by upstream PR #2127 (moved tracker entry to closed-items section + counter updated).
 
 ### Step 6: tracker commit hash
 
+(commit pending — single commit covers tracker + plan + bead notes — hash filled after `git commit`)
+
 ### Step 7: Day-28 punt
+
+**Modal Day-28 shape: PR-watch + mc-mxl4vc tour-day hybrid (~90 min budget).**
+
+- All 3 upstream PRs still idle as of EOD Day-27: #2088 (post-APPROVAL ~3d, no second nudge yet — protocol says wait), #2136 (just nudged today; let sit), #2316 (~43h by Day-28 AM, approaching 48h "any thoughts?" threshold but still wait-only per <48h rule).
+- Day-28 morning: 5-min PR-state snapshot + brief check of `gh release list --repo gastownhall/beads` for v1.0.5 (mc-mxl4vc unblocker).
+- If beads v1.0.5 shipped → Day-28 becomes mc-mxl4vc city-upgrade execution day.
+- If beads still v1.0.4 + no PR movement → tour-day shape on mc-mxl4vc body's next-steps (re-read the upstream auto-import-upgrade thread for any movement; light scope).
+- **DO NOT** prep a Day-28 plan file yet — punt is for the morning read, not pre-commitment.
+
+Also expect the 5th compactor fire ~08:10-08:12 PT on 5/19 (drift continues). Observation-only; same anti-plan against re-arming deacon.
 
 ### G1-G3 verdicts
 
-- G1 (PR #2316 still OPEN/unreviewed):
-- G2 (compactor fails ~08:06 PT):
-- G3 (#2136 nudge sent):
+- **G1 (PR #2316 still OPEN/unreviewed): SATISFIED** as of EOD-AM check — `state=OPEN`, `reviewDecision=""`, only Copilot-error bot review. Recheck at EOD.
+- **G2 (compactor fails ~08:06 PT): SATISFIED** — fired 08:09:17 PT, failed 08:12:04 PT, exit-1. Predicted window slightly off (+2min vs +1min drift model) but failure-class matched.
+- **G3 (#2136 nudge sent): SATISFIED** at 2026-05-18T11:03:58Z.
+
+**All 3 predictions held → Branch B (modal, ~70% pre-day) is the realized branch.**
 
 ### Surprises
 
+- **PR #2316 auto-tagged `priority/p1` by `randy-release-manager[bot]`** at 2026-05-17T22:09:12Z (~37 min after open) — higher than the local bead's P3 classification. Same burst replaced `status/needs-triage` with `kind/bug`. Maintainer team's triage pipeline saw it; no human has acted since. P1 is a queue-priority signal, not a review signal. Discovered via `gh api repos/gastownhall/gascity/issues/2316/timeline` during Day-27 PR-state read.
+- **Issue #1487 was closed 2 days ago and the tracker missed it.** quad341 closed it at 2026-05-16T12:10:35Z via merge of PR #2127 (`fix: bound events multiplexer provider fan-out` by julianknutsen, +386 -21 in `internal/events/multiplexer.go` + new tests). A3Ackerman's multiplexer-fan-out diagnosis (which our supportive comment backed) was correct. **Stale-detection lesson:** the tracker entry's "**Next action:** No action. Monitor for thread movement" comment effectively meant nobody was actively checking; tour-day or read-day cadence should include `gh api .../issues/N` for any item whose status was last read >1 week ago, not just our own PRs. Moved #1487 to closed-items section; counters updated.
+
 ### What the day actually produced
+
+- **#2136 nudged** at 2026-05-18T11:03:58Z (G3); polite one-liner per playbook.
+- **4th-consecutive compactor failure observed** (G2): fire 08:09:17 PT, fail 08:12:04 PT, exit-1, 2m47s duration. mc-o5fhwm auto-tracking bead spawned & closed.
+- **mc-1zccc2 bead** updated with Day-27 datum + duration-variance observation + plan-grep lesson.
+- **Tracker entry for Issue #1487** moved to closed-items section (detected closed by upstream PR #2127 — julianknutsen's `fix: bound events multiplexer provider fan-out` merged by quad341 2026-05-16T12:10:33Z, +386 -21 in `internal/events/multiplexer.go`); counters updated.
+- **PR #2316 timeline-event check** revealed `randy-release-manager[bot]` auto-classified it `priority/p1` ~37 min post-open; recorded in tracker.
+- **No new PRs opened** (per anti-plan).
+- **No deacon re-arm** (per anti-plan).
+
+### Process lessons captured
+
+1. **events.jsonl uses local-time ISO strings, not UTC `Z`.** Plan's Step-3 grep template (`select(.ts >= "2026-05-18T14:00:00Z")`) would have missed all today's local-time-formatted events. **Fix the template before reuse on Day-28+** — compare against local-time prefix (`"2026-05-18T07:00:00"`) instead, or normalize timestamps inside jq with `fromdateiso8601`.
+2. **Passive tracker entries decay silently.** Issue #1487's "Monitor for thread movement" comment effectively meant nobody was actively checking. Tour-day cadence should include `gh api .../issues/N` for any item whose status was last read >1 week ago.
+3. **Drift model needs tolerance.** Compactor fire's +1min/day drift held for 4 prior days but slipped to +2min on 5/18. Use ±2min window on next-day predictions, not point estimates.

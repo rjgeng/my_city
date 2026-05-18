@@ -126,6 +126,8 @@ Timeline events (via `gh api .../issues/2316/timeline`) reveal one observation w
 
 **Upstream release status (verified Day-24):** beads latest release is **v1.0.4** (2026-05-09, the broken one). **v1.0.5 NOT yet shipped.** Workaround stands.
 
+**Day-27 PM verification (2026-05-18):** confirmed unchanged — #3880 OPEN (no activity since 5/13), beads still v1.0.4 latest. Skip re-check until ~Day-30.
+
 **Next action:**
 - [ ] **Monitor weekly.** Check `gh release list --repo gastownhall/beads` on each tour-day.
 - [ ] When v1.0.5 ships: plan city upgrade per mc-mxl4vc body's next-steps; validate the empty-DB guard works; close mc-mxl4vc.

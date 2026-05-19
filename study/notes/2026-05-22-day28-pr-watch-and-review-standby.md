@@ -146,9 +146,21 @@ Pre-staged answer: orthogonal concerns. Markers are for cross-fire recovery afte
 
 **Self-check on `compacted_from_head` reassignment:** verified safe. Variable semantics = "the local HEAD value the compaction's preflight succeeded against"; updating on retry is consistent with #2225's marker contract (line 871 ancestry check still works).
 
-### Step 4: compactor fire observation (PENDING ~08:10 PT)
+### Step 4: compactor fire observation (2026-05-19 ~08:10 PT)
 
-(filled at EOD)
+```
+seq 575218 order.fired   2026-05-19T08:10:51.159774-07:00 mol-dog-compactor
+seq 575401 order.failed  2026-05-19T08:13:08.459154-07:00 mol-dog-compactor "exit status 1"
+```
+
+- **Fired:** 08:10:51 PT (predicted 08:08-08:12 → within band)
+- **Failed:** 08:13:08 PT, exit-1
+- **Duration:** 2m17s (between 5/17's 23s and 5/18's 2m47s — supports "race window depends on contemporaneous hq write load")
+- **Drift table:** 5/17 08:07:20 → 5/18 08:09:17 → 5/19 08:10:51 (+~1m54s/day; consistent with the +1-2min/day model)
+- **Auto-tracking bead:** none spawned for today's fire. mc-1zccc2 covers this streak; no mc-o5fhwm-style sibling created.
+- **5th consecutive fire** since the bead-tracked streak started 5/14 (10th historical fire in events.jsonl going back to 5/7).
+
+**G2 verdict: SATISFIED** — fire & failure within predicted window/duration/exit pattern.
 
 ### Step 5: nudge decisions
 
@@ -162,22 +174,51 @@ This commit covers the plan note only. Tracker update batched into the close-out
 
 ### Step 7: Day-29 punt
 
-(EOD — depends on whether julianknutsen submits review today, and the 5th-fire datum)
+**EOD state (~16:30 PT):**
 
-### G1-G3 verdicts (pending EOD recheck)
+| PR | updatedAt | reviewDecision | delta vs AM read |
+|---|---|---|---|
+| #2088 | 2026-05-16T00:01:45Z | "" | unchanged |
+| #2136 | 2026-05-18T11:03:58Z | "" | unchanged |
+| #2316 | 2026-05-19T06:54:02Z | "" | unchanged (still `status/reviewing`, no body submitted in 9.5h) |
 
-- **G1:** partially falsified at AM read (active review in-flight, no submitted body yet). Final verdict EOD.
-- **G2:** pending — fire window 08:08-08:12 PT.
-- **G3:** SATISFIED at AM read — beads still v1.0.4.
+Beads release: v1.0.4 still latest.
+
+**Day-29 shape:**
+
+- **Modal (~70%) — another PR-watch + 6th-fire observation.** julianknutsen's `status/reviewing` is stale at ~9.5h with no body. Most likely tomorrow AM he submits the review, OR the label sits another day. Either way, the morning read picks the branch.
+- **If #2316 review-body lands overnight → fix-day** (pre-staged responses in findings 1-3 above). Estimate 60-120 min depending on which angles he raises.
+- **If beads v1.0.5 ships → mc-mxl4vc upgrade-day.** (Low probability — v1.0.4 has been latest for 10 days.)
+
+**Day-29 morning-read template:** same five-step block from §2 above. Add: `gh api repos/gastownhall/gascity/issues/2316/timeline --paginate | jq -r '.[] | select(.created_at >= "2026-05-19T22:00:00Z") | "\(.created_at) \(.event // "comment")"' | tail -20` to catch label flips that don't bump `updatedAt`.
+
+**G2 prediction for Day-29:** 6th-consecutive fire at ~08:12-08:16 PT (continuing drift), exit-1, duration in 23s-3m range.
+
+### G1-G3 verdicts (EOD)
+
+- **G1 (#2316 still OPEN, reviewDecision="" at Day-28 AM):** literal text **SATISFIED** (state and `reviewDecision` unchanged at AM and at EOD). Underlying assumption ("no human activity") **FALSIFIED** by julianknutsen's label flip 06:54Z. Net: **partially falsified — literal hold, spirit broken.** Lesson: future Gs should specify the underlying signal, not just an outwardly-observable field.
+- **G2 (5th fire ~08:10-08:12 PT, exit-1, 23s-3min):** **SATISFIED.** Fire 08:10:51, fail 08:13:08, 2m17s, exit-1. Drift +1-2min/day model held.
+- **G3 (beads stays at v1.0.4):** **SATISFIED.** No new release.
 
 ### Surprises
 
-(EOD)
+1. **No mc-o5fhwm-style auto-spawned tracking bead** for today's fire. mc-1zccc2 + mc-4m2da1 cover the streak; the witness/refinery didn't sprout a fresh sibling bead. Mild — confirms that "auto-tracking bead per failure" isn't an invariant.
+2. **julianknutsen's `status/reviewing` sitting 9.5h+** with zero body submitted. Possible interpretations: (a) he started, got pulled away, will resume tomorrow; (b) he's drafting a long review offline; (c) the label is aspirational and he won't return today. (a) is most likely given the 06:54Z timestamp = late evening PT for someone in his apparent timezone — he probably labeled it before bed.
+3. **Mid-day Mayor restart with empty hook** — propulsion principle led me to resume the Day-28 close-out without explicit user prompt. Worked cleanly because the plan note + tracker state were both legible artifacts.
 
 ### What the day actually produced
 
-(EOD)
+- AM read suite executed (PR states, beads release, bead states, compactor events) at 04:00 PT.
+- #2316 timeline dig identified G1 partial-falsification at 04:15 PT.
+- Cold prep-read on #2316 + #2225 (~04:30-05:30 PT) — three pre-staged response postures for likely review angles.
+- 5th-consecutive compactor failure observed at 08:13 PT (G2 datum).
+- EOD recheck at ~16:30 PT — no new activity since AM on any of the three PRs.
+- Tracker updated for Day-28 (last-updated line + #2316 timeline addendum + mc-1zccc2 streak count + "DO NOT re-arm gastown.deacon" warning).
+- No code changes. No nudges. No new beads. Anti-plans #1-5 held.
 
 ### Process lessons captured
 
-(EOD)
+1. **Falsifiability needs both a fact and a generator.** G1 was written as "#2316 still OPEN, reviewDecision=''" — observable but shallow. The actual prediction-of-interest was "no human activity," which the literal G1 didn't constrain. Future Gs should spell out: *what outward signal* AND *what underlying generator* you're claiming. When they diverge, classify as partial. *Memory candidate: feedback_gs_two_layers.md.*
+2. **Label-only timeline events don't always bump `updatedAt`.** julianknutsen's 06:12Z and 06:54Z label flips DID bump `updatedAt` — but other label-only events might not (e.g., bot auto-labels). The Day-29 morning-read template now includes an explicit timeline pull as a backstop.
+3. **Mid-day Mayor restart resumed cleanly because the AM plan + tracker were legible.** This is the propulsion principle paying off. The handoff contract held: the file's "(EOD)" placeholders told me exactly what was un-done.
+4. **No mc-o5fhwm sibling for today's fire** — auto-tracking-bead-per-failure is not invariant in the current witness/refinery wiring. Don't assume one will exist; rely on the umbrella bead (mc-1zccc2) and the events.jsonl stream as ground truth.

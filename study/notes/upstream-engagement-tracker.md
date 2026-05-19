@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-18 (Day-27 AM — PR-watch: all 3 PRs unchanged overnight; **#2136 nudged** at ~93h content-idle; #2088 + #2316 wait-only; **Issue #1487 detected closed** by upstream PR #2127 (julianknutsen, merged 5/16) — moved to closed items; 4th compactor fire observation pending ~08:06 PT)
+**Last updated:** 2026-05-19 (Day-28 AM — **PR #2316 entered active review by julianknutsen** at 2026-05-19T06:54Z (`status/reviewing` label, no body submitted yet); **5th-consecutive `mol-dog-compactor` failure confirmed** fire 08:10:51 PT / fail 08:13:08 PT / 2m17s / exit-1; all other PRs unchanged; no nudges sent — anti-plan held)
 
 ---
 
@@ -103,6 +103,10 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 Timeline events (via `gh api .../issues/2316/timeline`) reveal one observation worth flagging: **`randy-release-manager[bot]` auto-classified the PR as `priority/p1`** at 2026-05-17T22:09:12Z (~37 min after open), and replaced `status/needs-triage` with `kind/bug` in the same burst. The bot's P1 tag is higher than the local bead's P3 — interpret as: maintainer team's triage pipeline saw it and considers it important, but no human has acted since. P1 is a queue-priority signal, not a review signal. Last timeline event was 2026-05-17T22:09:12Z; no activity in the ~13.5h since.
 
+**Day-28 check (2026-05-19 AM):** OPEN, MERGEABLE, `reviewDecision=""`. **julianknutsen entered active review** — labeled `status/needs-review-auto` 06:12:15Z, swapped to `status/reviewing` 06:54:02Z. No body submitted as of 08:46 PT (~3h into reviewing state). julianknutsen is the same maintainer who authored #2225 (the refactor that landed in `flatten_database()`) — strongest possible signal of imminent action. **G1 partially falsified** — state/reviewDecision unchanged, but the "no human activity" assumption is broken. Cold prep-read on #2316 + #2225 done (study notes 2026-05-22-day28); response postures pre-staged for likely review angles (body history claim, marker integration question, `awk srand()` style nit, test-coverage ask). **Anti-plan #3 held** — no preemptive rebase or self-correcting comment.
+
+**5th-consecutive compactor failure observed (G2 satisfied):** fire 2026-05-19T08:10:51 PT, fail 2026-05-19T08:13:08 PT, duration 2m17s, exit-1. Drift continues at ~+1-2min/day (5/17 08:07:20, 5/18 08:09:17, 5/19 08:10:51). Duration sits between 5/17's 23s and 5/18's 2m47s — supports the "race timing-dependent, varies with hq write load" hypothesis. mc-o5fhwm-style auto-tracking bead expected to spawn (not yet checked).
+
 **Next action:**
 - [ ] **Wait 24h** for maintainer review (julianknutsen most likely given #2225 ownership).
 - [ ] If silent at 48h: leave a brief "any thoughts?" comment per §24 playbook.
@@ -142,11 +146,11 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 
 ### mc-1zccc2 — `mol-dog-compactor exit 1 — two consecutive daily runs failed (5/14, 5/15)`
 
-- **Local bead only** — no upstream item yet
+- **Local bead only** — no upstream item yet (fix is upstream as PR #2316; bead stays OPEN pending merge + city upgrade + post-install soak)
 - **Surface:** different from mc-w9iua4. Compactor does dolt history flattening, not git push. Distinct root cause.
-- **Pattern:** daily order, ~08:00 PT, exit-1 on last 2 fires (5/14 + 5/15)
-- **Next:** Day-27 (2026-05-17) re-arm `gastown.deacon` at ~07:45 PT — Day-26 arm window was missed (Branch B). Next predicted fire ~08:03–08:06 PT (+1 min/day drift).
-- **Becomes upstream when:** root cause is identified + fix shape is clear
+- **Pattern:** daily order, ~08:00 PT drifting +1-2min/day. **6 consecutive exit-1 failures observed** (5/14, 5/15, 5/16, 5/17 23s, 5/18 2m47s, 5/19 2m17s). Variable duration suggests race window depends on hq's contemporaneous write load.
+- **Next:** wait on PR #2316 review. **DO NOT re-arm `gastown.deacon`** — Day-26 confirmed it doesn't capture subprocess stderr. The fire pattern is already deterministic enough to not need further capture.
+- **Becomes upstream when:** PR #2316 merges. Then city upgrade + 3-5 daily soak fires; close bead if 0 failures.
 
 ---
 

@@ -4,6 +4,8 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 **Last updated:** 2026-05-19 (Day-28 AM — **PR #2316 entered active review by julianknutsen** at 2026-05-19T06:54Z (`status/reviewing` label, no body submitted yet); **5th-consecutive `mol-dog-compactor` failure confirmed** fire 08:10:51 PT / fail 08:13:08 PT / 2m17s / exit-1; all other PRs unchanged; no nudges sent — anti-plan held)
 
+**Static rules:** see `upstream-engagement-playbook.md` (`§24` = post-engagement stall protocol; future sections append-only).
+
 ---
 
 ## Counters
@@ -168,7 +170,7 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 
 **What it did:** fixed jsonl-export.sh state-file fallback path — when primary state file is missing, fall back to `dolt-provider-state.json` instead of failing.
 
-**Status:** done, shipped. First contribution to land upstream. Reference proof point for §24's "honesty-first PR body + clean make check" pattern.
+**Status:** done, shipped. First contribution to land upstream. Reference proof point for the "honesty-first PR body + clean make check" pattern (candidate for a future playbook section; not §24 — that's post-engagement stall).
 
 ---
 
@@ -183,7 +185,7 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 
 **What the fix did:** bounded events multiplexer provider fan-out so slow providers do not block healthy providers; preserved partial results and attached healthy event watchers when another provider stalls; added regression tests for ListAll, ListTail, LatestCursor, and Watch. **A3Ackerman's multiplexer-fan-out diagnosis was correct** — fix aligned with that direction.
 
-**Status:** done, shipped. Anecdote for §24 playbook: supportive comments on someone else's issue don't drive the fix but are preserved in the closed thread and confirm we tracked the right diagnostic path independently. Detected stale during Day-27 PR-watch (tracker still listed OPEN until 2026-05-18).
+**Status:** done, shipped. Anecdote for a future playbook section on supportive-comment engagement (not §24 — that's post-engagement stall): comments on someone else's issue don't drive the fix but are preserved in the closed thread and confirm we tracked the right diagnostic path independently. Detected stale during Day-27 PR-watch (tracker still listed OPEN until 2026-05-18).
 
 ---
 

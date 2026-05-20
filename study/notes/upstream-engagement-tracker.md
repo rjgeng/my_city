@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-19 (Day-28 AM — **PR #2316 entered active review by julianknutsen** at 2026-05-19T06:54Z (`status/reviewing` label, no body submitted yet); **5th-consecutive `mol-dog-compactor` failure confirmed** fire 08:10:51 PT / fail 08:13:08 PT / 2m17s / exit-1; all other PRs unchanged; no nudges sent — anti-plan held)
+**Last updated:** 2026-05-20 (Day-29 EOD — **PR #2316 MERGED** at 2026-05-20T14:54:23Z (07:54 PT) via `/adopt-pr` workflow; 6th-consecutive `mol-dog-compactor` failure confirmed fire 08:14:09 PT / fail 08:17:07 PT / 2m58s / exit-1 (drift anomaly +3m18s flagged but not investigated); §24 playbook canonicalized; #2088 + #2136 unchanged; no nudges sent — anti-plan held)
 
 **Static rules:** see `upstream-engagement-playbook.md` (`§24` = post-engagement stall protocol; future sections append-only).
 
@@ -14,11 +14,11 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 |---|---|
 | Total engagements | 6 (4 PRs + 2 issue comments) |
 | PRs opened | 4 |
-| PRs merged | 1 (#2037) |
-| PRs awaiting maintainer | 3 (#2088, #2136, #2316) |
+| PRs merged | 2 (#2037, #2316) |
+| PRs awaiting maintainer | 2 (#2088, #2136) |
 | Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
-| Local-only beads (linked to upstream items) | 3 active (mc-w9iua4 → #2136, mc-mxl4vc, mc-1zccc2 → #2316 via fix bead mc-4m2da1) |
+| Local-only beads (linked to upstream items) | 3 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge) |
 | Repos touched | 2 (gascity, beads) |
 
 ---
@@ -87,38 +87,6 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 ---
 
-### PR #2316 — `fix(dolt): retry preflight when HEAD races on busy DBs in gc dolt compact`
-
-- **Repo:** `gastownhall/gascity`
-- **URL:** https://github.com/gastownhall/gascity/pull/2316
-- **State:** OPEN, MERGEABLE
-- **Day filed:** Day-26 (2026-05-17, ~14:33 PT)
-- **Size:** +57 -10 (single bash file: `examples/dolt/commands/compact/run.sh`)
-- **HEAD SHA:** `ffa66a04`
-- **Bead lineage:** mc-1zccc2 (diagnosis) → mc-4m2da1 (fix bead)
-
-**What it does:** wraps the pre-flatten preflight gather + post-preflight HEAD comparison in a 3-attempt retry loop with jittered 1-5s sleep, fixing the `mol-dog-compactor` exit-1 failures on busy `hq` (3 consecutive daily fires 5/14, 5/15, 5/16). Quiet DBs take the fast path through attempt 1.
-
-**Note on upstream timing:** opened the day after #2225 (julianknutsen, 2026-05-16) refactored this same function and incidentally removed the prior pre-flatten HEAD-check. The race is still present post-#2225 — symptom shifted from "HEAD changed before flatten" abort to "value hash changed after flatten" quarantine; PR re-introduces a HEAD-stability check at the relocated preflight site.
-
-**Day-27 check (2026-05-18 AM):** OPEN, MERGEABLE, `reviewDecision=""`, ~17h old at start of day → ~13h since Day-26 EOD. Only Copilot bot review (2026-05-17T21:36Z, errored out — "Copilot encountered an error and was unable to review", no human review yet). **G1 holding.** Per protocol, <24h is wait-only; **DO NOT nudge.**
-
-Timeline events (via `gh api .../issues/2316/timeline`) reveal one observation worth flagging: **`randy-release-manager[bot]` auto-classified the PR as `priority/p1`** at 2026-05-17T22:09:12Z (~37 min after open), and replaced `status/needs-triage` with `kind/bug` in the same burst. The bot's P1 tag is higher than the local bead's P3 — interpret as: maintainer team's triage pipeline saw it and considers it important, but no human has acted since. P1 is a queue-priority signal, not a review signal. Last timeline event was 2026-05-17T22:09:12Z; no activity in the ~13.5h since.
-
-**Day-28 check (2026-05-19 AM):** OPEN, MERGEABLE, `reviewDecision=""`. **julianknutsen entered active review** — labeled `status/needs-review-auto` 06:12:15Z, swapped to `status/reviewing` 06:54:02Z. No body submitted as of 08:46 PT (~3h into reviewing state). julianknutsen is the same maintainer who authored #2225 (the refactor that landed in `flatten_database()`) — strongest possible signal of imminent action. **G1 partially falsified** — state/reviewDecision unchanged, but the "no human activity" assumption is broken. Cold prep-read on #2316 + #2225 done (study notes 2026-05-22-day28); response postures pre-staged for likely review angles (body history claim, marker integration question, `awk srand()` style nit, test-coverage ask). **Anti-plan #3 held** — no preemptive rebase or self-correcting comment.
-
-**5th-consecutive compactor failure observed (G2 satisfied):** fire 2026-05-19T08:10:51 PT, fail 2026-05-19T08:13:08 PT, duration 2m17s, exit-1. Drift continues at ~+1-2min/day (5/17 08:07:20, 5/18 08:09:17, 5/19 08:10:51). Duration sits between 5/17's 23s and 5/18's 2m47s — supports the "race timing-dependent, varies with hq write load" hypothesis. mc-o5fhwm-style auto-tracking bead expected to spawn (not yet checked).
-
-**Next action:**
-- [ ] **Wait 24h** for maintainer review (julianknutsen most likely given #2225 ownership).
-- [ ] If silent at 48h: leave a brief "any thoughts?" comment per §24 playbook.
-- [ ] If review requests changes (e.g., merge with #2225 patterns, fold into transaction): address inline.
-- [ ] Watch `mol-dog-compactor` order outcomes locally — 3-5 daily fires post-install will be a clear soak signal.
-
-**Risk:** Medium. Re-introduces a check the maintainer just removed during refactor; reviewer may push back asking for a different shape (transaction-level guard, or different retry budget). Functional correctness should be solid (mirrors #2136 pattern, syntax-checked).
-
----
-
 ### Issue #3880 (beads repo) — `Server mode: repeated 'auto-import ... into empty database' on every update`
 
 - **Repo:** `gastownhall/beads` (NOT gascity — this caused earlier API confusion)
@@ -157,6 +125,31 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 ---
 
 ## Closed / merged items
+
+### PR #2316 — `fix(dolt): retry preflight when HEAD races on busy DBs in gc dolt compact` ✅
+
+- **Repo:** `gastownhall/gascity`
+- **URL:** https://github.com/gastownhall/gascity/pull/2316
+- **State:** **MERGED** by julianknutsen on 2026-05-20T14:54:23Z (07:54 PT) via merge commit `1462317e`
+- **Day filed:** Day-26 (2026-05-17, ~14:33 PT)
+- **Day merged:** Day-29 (2026-05-20)
+- **Cycle time:** opened 2026-05-17T21:24Z → merged 2026-05-20T14:54:23Z (~65h)
+- **Size:** +57 -10 (original contributor) + +102 -8 (maintainer fixup, per Adoption Review)
+- **Bead lineage:** mc-1zccc2 (diagnosis) → mc-4m2da1 (fix bead, soak-pending post-merge)
+
+**What it did:** wrapped the pre-flatten preflight gather + post-preflight HEAD comparison in a 3-attempt retry loop with jittered sleep, fixing the `mol-dog-compactor` exit-1 failures on busy `hq`. Maintainer fixup added stricter HEAD-probe error handling, tightened `awk srand()` integer format, and added test coverage for one-time HEAD movement, continuously moving HEAD, and verify-time HEAD probe failures.
+
+**Merge path:** **`/adopt-pr` workflow.** julianknutsen committed a `fixup!` directly to the PR branch at 2026-05-20T12:53Z (no review body), second-rebased at 14:41Z to resolve a latest-base conflict ("without changing the reviewed patch"), posted a templated Maintainer Adoption Review at 14:46Z (approve; 3 findings categorized + resolved; 2 non-gating follow-up invitations), labeled `status/merge-ready` → `status/merge-queued`, and merged at 14:54Z. Contributor-side action across the whole sequence: a single thank-you comment at 06:20 PT.
+
+**`/adopt-pr` observation (n=1, not yet canonized):** automated/templated adoption pathway with explicit review/adoption phases. Footer: "_Adopted via `/adopt-pr` workflow. Original contributor commits preserved._" Adoption Review categorizes findings against "claude" and "synthesis" reviewer entities — suggests AI reviewers in workflow's review pass. Not promoted to playbook section yet; deferred until additional samples accumulate (per Day-29 process discipline).
+
+**Two non-gating follow-up invitations** (file as beads first; convert to PRs only after city-upgrade soak completes):
+- Clarify retry comment: "3 total attempts; only retries HEAD movement, not transient probe failures."
+- Add narrow test for top-of-loop HEAD refresh failure on retry attempt 2.
+
+**Status:** done, shipped. Second contribution to land upstream. mc-4m2da1 stays OPEN pending city-upgrade + 24h post-install soak (Day-30 modal shape).
+
+---
 
 ### PR #2037 — `fix(packs): fallback to dolt-provider-state.json` ✅
 

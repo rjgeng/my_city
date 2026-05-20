@@ -6,13 +6,15 @@ Static rules and patterns for working with upstream maintainers on `gastownhall/
 
 ---
 
-## §24 — Post-engagement stall protocol
+## §24 — Post-engagement protocols
 
-**Stall definition:** a PR has received *some form of maintainer acknowledgement* but has not progressed toward merge or explicit decision for longer than the repo's typical cadence allows. Distinct from pre-engagement silence (no maintainer touch yet) — that's §-TBD on the nudge cadence, partially captured in tracker's "When considering a nudge" section.
+**Definition:** a PR has received *some form of maintainer acknowledgement*. The acknowledgement may be passive (an approval that doesn't merge, a reviewing-label that doesn't produce a body) or active (a direct commit to the branch via `/adopt-pr` or equivalent). Either way, the engagement is real and the contract has shifted — the maintainer owns the next step.
+
+Distinct from pre-engagement silence (no maintainer touch yet) — that's §-TBD on the nudge cadence, partially captured in tracker's "When considering a nudge" section.
 
 **Core principle:** once a maintainer has engaged, **do not actively manage the engagement from our side**. Pressure at this stage is asymmetric — it costs us nothing to wait, and adds friction to a maintainer who has already signaled they're aware. Acknowledgement is the contract; the maintainer owns the next step. Our job is to be ready when they return, not to chase.
 
-Two sub-cases observed in the wild:
+Three sub-cases observed in the wild:
 
 ---
 
@@ -74,7 +76,43 @@ Two sub-cases observed in the wild:
 
 ---
 
-### §24 — Common rules (apply to both sub-cases)
+### §24c — Maintainer-driven adoption (`/adopt-pr` workflow)
+
+**Trigger:** a maintainer (or the `/adopt-pr` automation) commits directly to the PR branch — typically a `fixup!`-named commit on top of our work — and/or posts a templated "Maintainer Adoption Review" comment. The maintainer drives the PR to merge; we are no longer waiting for them to act.
+
+This is post-engagement *progress*, not stall — but belongs in §24 because the same core principle applies: **do not actively manage from our side**.
+
+**Reference case:** PR #2316 (julianknutsen, 2026-05-20). Fixup at 12:53Z (no review body), second rebase at 14:41Z (latest-base conflict, asserted "without changing the reviewed patch"), Maintainer Adoption Review at 14:46Z, merged at 14:54Z via `1462317e`. Total contributor-side action across the sequence: one thank-you comment at 06:20 PT.
+
+**Historical signal:** at least 5 prior `/adopt-pr`-flavored merges visible in `gastownhall/gascity` main history (2026-04-19 to 2026-05-05). Branch-name patterns vary — `adopt-pr/<adopter>-pr-<N>` (adoption of contributor PR #N by gastownhall agent `<adopter>`); `adopt-pr-<N>-<descriptor>` (fixups). The workflow shape has evolved; do not over-fit the rule to the most recent form.
+
+**Workflow shape (n=1 direct experience, n=6 visible):**
+
+1. Maintainer commits a `fixup!` directly to the PR branch — sometimes silently (#2316: 1.5h gap between commit and Adoption Review), sometimes paired with the comment.
+2. Optional rebase for latest-base conflict. Adoption Review may assert "without changing the reviewed patch."
+3. Templated Adoption Review with fixed sections: Decision, Original PR Review, Maintainer Changes, Final Review Status, Review Iterations. Findings may be categorized against AI-reviewer entities (e.g., "claude", "synthesis").
+4. Labels flow: `status/merge-ready` → `status/merge-queued` → MERGED → labels cleaned.
+5. Non-gating follow-up invitations may accompany the review — explicit "future PR welcome" signals, not asks.
+
+**What to engage with:** one thank-you comment. Template: "Thanks for the fixup — [2 specific improvements]. Looks good on my end; ready to merge whenever you are." Specific, concrete, no flattery, no questions, no requests.
+
+**When to stop tracking actively:** post-merge. Tracker entry moves to Closed/merged. Soak bead (e.g., mc-4m2da1) stays OPEN until post-install observation completes — typically 24h passive observation of the affected order/subsystem.
+
+**Anti-rules:**
+
+1. **Don't force-push to squash the `fixup!`.** GitHub's squash-and-merge collapses at merge time; force-pushing while a maintainer is mid-adoption may disrupt the workflow state machine.
+2. **Don't review-grade the maintainer's changes** in the thank-you comment. Acknowledge improvements neutrally; don't critique test rewrites, code-shape decisions, or design choices.
+3. **Don't raise PR-body factual errors post-adoption.** If the maintainer saw them and chose not to mention them, drop from our side too. The body's job ended at first review touch.
+4. **Don't file non-gating follow-up PRs immediately.** Soak first. The fix may interact with other code in ways not visible until exercised. `hold-until-soak` label on follow-up beads gates this; convert beads → PRs only after soak validates the merged fix.
+5. **Don't reverse-engineer the Adoption Review template content** to look for hidden signals. Read for substance; the structure is templated, not designed to encode personal feedback.
+
+**Process insight carried from #2316:**
+
+The Adoption Review categorizes findings against AI-reviewer entities ("claude", "synthesis"). Suggests the workflow uses LLM reviewers in its review pass. Useful context for future PR-body authoring (write so an LLM can categorize cleanly); not material to comment on publicly.
+
+---
+
+### §24 — Common rules (apply to all sub-cases)
 
 - **Cold prep-read is the only legitimate "active" work** during a post-engagement stall. Read related PRs, anticipated review angles, and adjacent code. Stage responses internally; do not publish them. (Day-28 §3 is the template — three findings, posture per finding, no comment posted.)
 - **The bead behind the PR stays OPEN** until merge + post-install soak confirms the fix. PR state is not bead state.
@@ -89,7 +127,7 @@ Synced 2026-05-20 (Day-29 EOD) after PR #2316 merge moved its tracker entry to C
 
 - `upstream-engagement-tracker.md` line 7 — header pointer to this playbook.
 - `upstream-engagement-tracker.md` line 49 — PR #2088 next-actions (active §24a citation).
-- `upstream-engagement-tracker.md` line 144 — PR #2316 Closed entry notes `/adopt-pr` as a §24c candidate (deferred until n≥2 observations).
+- `upstream-engagement-tracker.md` line 144 — PR #2316 Closed entry: original `/adopt-pr` observation (Day-29 noted n=1 direct experience + canonization deferred; Day-30 promoted to active §24c after `git log --grep="adopt-pr"` revealed n=6 visible instances).
 - `upstream-engagement-tracker.md` line 166 — PR #2037 retrospective disclaims §24 attribution ("honesty-first PR body + clean make check" is a future-section candidate).
 - `upstream-engagement-tracker.md` line 181 — Issue #1487 retrospective disclaims §24 attribution (supportive-comment engagement is a future-section candidate).
 

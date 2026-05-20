@@ -4,7 +4,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 **Last updated:** 2026-05-20 (Day-29 EOD — **PR #2316 MERGED** at 2026-05-20T14:54:23Z (07:54 PT) via `/adopt-pr` workflow; 6th-consecutive `mol-dog-compactor` failure confirmed fire 08:14:09 PT / fail 08:17:07 PT / 2m58s / exit-1 (drift anomaly +3m18s flagged but not investigated); §24 playbook canonicalized; #2088 + #2136 unchanged; no nudges sent — anti-plan held)
 
-**Static rules:** see `upstream-engagement-playbook.md` (`§24` = post-engagement stall protocol; future sections append-only).
+**Static rules:** see `upstream-engagement-playbook.md` (`§24` = post-engagement protocols — §24a APPROVED stall, §24b REVIEWING stall, §24c `/adopt-pr` adoption; future sections append-only).
 
 ---
 
@@ -141,7 +141,7 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 
 **Merge path:** **`/adopt-pr` workflow.** julianknutsen committed a `fixup!` directly to the PR branch at 2026-05-20T12:53Z (no review body), second-rebased at 14:41Z to resolve a latest-base conflict ("without changing the reviewed patch"), posted a templated Maintainer Adoption Review at 14:46Z (approve; 3 findings categorized + resolved; 2 non-gating follow-up invitations), labeled `status/merge-ready` → `status/merge-queued`, and merged at 14:54Z. Contributor-side action across the whole sequence: a single thank-you comment at 06:20 PT.
 
-**`/adopt-pr` observation (n=1, not yet canonized):** automated/templated adoption pathway with explicit review/adoption phases. Footer: "_Adopted via `/adopt-pr` workflow. Original contributor commits preserved._" Adoption Review categorizes findings against "claude" and "synthesis" reviewer entities — suggests AI reviewers in workflow's review pass. Not promoted to playbook section yet; deferred until additional samples accumulate (per Day-29 process discipline).
+**`/adopt-pr` observation → canonized as §24c on Day-30 (2026-05-20):** automated/templated adoption pathway with explicit review/adoption phases. Footer: "_Adopted via `/adopt-pr` workflow. Original contributor commits preserved._" Adoption Review categorizes findings against "claude" and "synthesis" reviewer entities — suggests AI reviewers in workflow's review pass. Day-29 close-out deferred canonization (n=1 direct); Day-30 pre-flight check (`git log --grep="adopt-pr"`) revealed n=6 visible instances (5 historical 2026-04-19 to 2026-05-05 + #2316). See `upstream-engagement-playbook.md` §24c for full protocol.
 
 **Two non-gating follow-up invitations** (file as beads first; convert to PRs only after city-upgrade soak completes):
 - Clarify retry comment: "3 total attempts; only retries HEAD movement, not transient probe failures."
@@ -163,7 +163,7 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 
 **What it did:** fixed jsonl-export.sh state-file fallback path — when primary state file is missing, fall back to `dolt-provider-state.json` instead of failing.
 
-**Status:** done, shipped. First contribution to land upstream. Reference proof point for the "honesty-first PR body + clean make check" pattern (candidate for a future playbook section; not §24 — that's post-engagement stall).
+**Status:** done, shipped. First contribution to land upstream. Reference proof point for the "honesty-first PR body + clean make check" pattern (candidate for a future playbook section; not §24 — that covers post-engagement protocols, not PR-authoring).
 
 ---
 
@@ -178,7 +178,7 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 
 **What the fix did:** bounded events multiplexer provider fan-out so slow providers do not block healthy providers; preserved partial results and attached healthy event watchers when another provider stalls; added regression tests for ListAll, ListTail, LatestCursor, and Watch. **A3Ackerman's multiplexer-fan-out diagnosis was correct** — fix aligned with that direction.
 
-**Status:** done, shipped. Anecdote for a future playbook section on supportive-comment engagement (not §24 — that's post-engagement stall): comments on someone else's issue don't drive the fix but are preserved in the closed thread and confirm we tracked the right diagnostic path independently. Detected stale during Day-27 PR-watch (tracker still listed OPEN until 2026-05-18).
+**Status:** done, shipped. Anecdote for a future playbook section on supportive-comment engagement (not §24 — that covers post-engagement protocols on our own PRs, not supportive-comments on someone else's work): comments on someone else's issue don't drive the fix but are preserved in the closed thread and confirm we tracked the right diagnostic path independently. Detected stale during Day-27 PR-watch (tracker still listed OPEN until 2026-05-18).
 
 ---
 

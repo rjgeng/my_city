@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-20 (Day-29 EOD — **PR #2316 MERGED** at 2026-05-20T14:54:23Z (07:54 PT) via `/adopt-pr` workflow; 6th-consecutive `mol-dog-compactor` failure confirmed fire 08:14:09 PT / fail 08:17:07 PT / 2m58s / exit-1 (drift anomaly +3m18s flagged but not investigated); §24 playbook canonicalized; #2088 + #2136 unchanged; no nudges sent — anti-plan held)
+**Last updated:** 2026-05-20 (Day-30 EOD — city-upgrade complete (`gc` HEAD-caa44a4 → HEAD-fad5d3f, supervisor restarted clean); §24c canonized (`/adopt-pr` adoption protocol, n=6 visible); mc-z92fpi + mc-iho25h filed as `hold-until-soak` non-gating follow-ups; **PR #2088 entered §24b** at 2026-05-20T16:13:41Z (quad341 write-access applied `status/reviewing`, no body); beads still v1.0.4; soak begins, first observation expected ~08:14–08:18 PT 5/21; no nudges sent — anti-plan held)
 
 **Static rules:** see `upstream-engagement-playbook.md` (`§24` = post-engagement protocols — §24a APPROVED stall, §24b REVIEWING stall, §24c `/adopt-pr` adoption; future sections append-only).
 
@@ -39,6 +39,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - **Day-25 update:** post-rebase mergeable. Nudge stands; per protocol DO NOT nudge again. Wait it out.
 - **Day-26 check (2026-05-16 EOD):** **csells APPROVED** at 2026-05-16T00:01Z on post-rebase HEAD `ca41269` (initial check missed this because the `comments` JSON view doesn't include reviews — must use `reviews`/`latestReviews` fields). csells is `authorAssociation: CONTRIBUTOR`, so `reviewDecision` remains empty — approval is meaningful peer signal but does NOT auto-merge. Still waiting on maintainer with write access (e.g. sjarmak, who merged #2037).
 - **Day-27 check (2026-05-18 AM):** unchanged — `updatedAt` still 2026-05-16T00:01:45Z, ~2.5 days post-approval idle. Protocol: post-APPROVAL is wait-only, **DO NOT nudge** a second time.
+- **Day-30 update (2026-05-20 PM):** **`quad341` (write-access) labeled `status/reviewing` at 2026-05-20T16:13:41Z** (09:13 PT). §24a stall transitioned into §24b acknowledgement by a different maintainer than the original APPROVAL reviewer. No body submitted; 5h stale at check time. **§24b 0-24h wait window opens; DO NOT nudge.** Predicted next paths: (a) quad341 submits review body, (b) quad341 uses `/adopt-pr` (per §24c — plausible for a docs-only PR), or (c) stays in §24b stall.
 
 **What it does:** removes the misleading "Simple/Complex convoys" framing from `cmd_convoy.go` `Long:` description; adds an explicit disambiguation paragraph stating convoys ≠ workflows.
 

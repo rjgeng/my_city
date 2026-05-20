@@ -85,9 +85,12 @@ Two sub-cases observed in the wild:
 
 ### §24 — Where this is cited
 
-- `upstream-engagement-tracker.md` line 47 (PR #2088 next-actions)
-- `upstream-engagement-tracker.md` line 112 (PR #2316 next-actions)
-- `upstream-engagement-tracker.md` line 171 (PR #2037 retrospective — "honesty-first PR body + clean make check" is a separate pattern, candidate for §-TBD)
-- `upstream-engagement-tracker.md` line 186 (Issue #1487 retrospective — supportive-comment anecdote)
+Synced 2026-05-20 (Day-29 EOD) after PR #2316 merge moved its tracker entry to Closed/merged:
 
-The line-171 and line-186 references are slightly loose — both attribute lessons to §24 that don't strictly fit "post-engagement stall." When the next playbook section lands (likely on "honesty-first PR body authoring"), retroactively re-attribute those two tracker references at that time.
+- `upstream-engagement-tracker.md` line 7 — header pointer to this playbook.
+- `upstream-engagement-tracker.md` line 49 — PR #2088 next-actions (active §24a citation).
+- `upstream-engagement-tracker.md` line 144 — PR #2316 Closed entry notes `/adopt-pr` as a §24c candidate (deferred until n≥2 observations).
+- `upstream-engagement-tracker.md` line 166 — PR #2037 retrospective disclaims §24 attribution ("honesty-first PR body + clean make check" is a future-section candidate).
+- `upstream-engagement-tracker.md` line 181 — Issue #1487 retrospective disclaims §24 attribution (supportive-comment engagement is a future-section candidate).
+
+Historical: an earlier §24b citation lived at tracker line 112 (PR #2316 next-actions, "If silent at 48h: leave a brief 'any thoughts?' comment per §24 playbook"). When PR #2316 merged on Day-29 via `/adopt-pr`, the entry moved to Closed/merged and dropped the next-actions block, removing that citation. §24b still governed the day's behavior; the literal text is no longer in the tracker.

@@ -18,7 +18,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 | PRs awaiting maintainer | 2 (#2088, #2136) |
 | Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
-| Local-only beads (linked to upstream items) | 3 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge) |
+| Local-only beads (linked to upstream items) | 4 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge; mc-jhsp8y in-flatten race exposed Day-31 — soak for race-frequency characterization) |
 | Repos touched | 2 (gascity, beads) |
 
 ---
@@ -115,13 +115,30 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 Items that are LOCAL beads only — not yet upstream, but could become upstream contributions after investigation. Listed here so they don't get lost.
 
+### mc-jhsp8y — `mol-dog-compactor: in-flatten race window on hq exposed post-#2316 — first quarantine marker 2026-05-21`
+
+- **Local bead only** — Day-31 diagnose-day artifact. Filed 2026-05-21 during first post-upgrade soak observation.
+- **Surface:** identical to mc-1zccc2 (`order.failed exit status 1`). **Different abort path.** Pre-#2316: preflight `head_commit` re-check (old run.sh:962-968). Post-#2316: post-flatten value-hash check (new run.sh:1538-1540, `verify_counts_saw_gain=1` branch).
+- **Causal separation:** old preflight race mitigated by #2316; newly-visible flatten-time race exposed safely through quarantine. Not a regression of #2316 — it's the next layer.
+- **Evidence artifact (DO NOT DELETE):** `.gc/runtime/packs/dolt/compact-quarantine/hq` — first observed quarantine marker of this kind. Primary diagnostic input; controller drops subprocess stderr so this file is the only structured trace of what happened.
+- **Lineage:** mc-1zccc2 (original diagnosis) → mc-4m2da1 (preflight-fix design, partial scope merged in #2316) → **mc-jhsp8y (in-flatten race, exposed by #2316)**.
+- **Acceptance:** 3+ more daily data points (5/22, 5/23, 5/24) to confirm in-flatten race repeats with similar frequency, then decide fix shape, OR non-repeat in which case downgrade and close.
+- **Candidate fix shapes (NOT decisions today):**
+  - Outer retry-with-backoff wrapping the whole probe + flatten + verify cycle for `hq` specifically (the originally-proposed-in-mc-4m2da1-but-not-merged flatten-cycle retry).
+  - Pause `hq` writers during compact (likely intrusive).
+  - Dolt-native locking primitives if available.
+- **Next:** Day-32 = read 5/22 compactor fire (expected 08:30–08:50 PT given today's +16m drift). Three branches: same reason → race confirmed reproducible; different reason → wider scope; no fire / exit-0 → write-spike-dependent, downgrade.
+- **Becomes upstream when:** in-flatten race characterized + fix shape decided → file upstream PR.
+- **Plan reference:** `study/notes/2026-05-21-day31-first-soak-observation.md`
+
 ### mc-1zccc2 — `mol-dog-compactor exit 1 — two consecutive daily runs failed (5/14, 5/15)`
 
-- **Local bead only** — no upstream item yet (fix is upstream as PR #2316; bead stays OPEN pending merge + city upgrade + post-install soak)
+- **Local bead only** — no upstream item yet (fix is upstream as PR #2316; bead stays OPEN pending Day-31+ soak resolution via [[mc-jhsp8y]])
 - **Surface:** different from mc-w9iua4. Compactor does dolt history flattening, not git push. Distinct root cause.
 - **Pattern:** daily order, ~08:00 PT drifting +1-2min/day. **6 consecutive exit-1 failures observed** (5/14, 5/15, 5/16, 5/17 23s, 5/18 2m47s, 5/19 2m17s). Variable duration suggests race window depends on hq's contemporaneous write load.
-- **Next:** wait on PR #2316 review. **DO NOT re-arm `gastown.deacon`** — Day-26 confirmed it doesn't capture subprocess stderr. The fire pattern is already deterministic enough to not need further capture.
-- **Becomes upstream when:** PR #2316 merges. Then city upgrade + 3-5 daily soak fires; close bead if 0 failures.
+- **Day-31 (2026-05-21) soak result:** first post-upgrade fire at 08:30:38 PT (+16m past predicted window). Failed via the NEW post-#2316 quarantine path, NOT the old preflight race. `.gc/runtime/packs/dolt/compact-quarantine/hq` marker captured the reason: `post-flatten value hash changed with row-count increase`. PR #2316's preflight retry succeeded; safety net activated as designed. Confirmed: old preflight race IS fixed. New in-flatten race exposed → captured in mc-jhsp8y.
+- **Next:** wait on [[mc-jhsp8y]] soak (Day-32+); mc-1zccc2 closes when in-flatten race is either characterized + fix shipped, OR confirmed one-off after 3+ clean fires.
+- **Becomes upstream when:** see [[mc-jhsp8y]] for the in-flatten race follow-up. The preflight race this bead originally diagnosed IS resolved.
 
 ---
 
@@ -149,6 +166,8 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 - Add narrow test for top-of-loop HEAD refresh failure on retry attempt 2.
 
 **Status:** done, shipped. Second contribution to land upstream. mc-4m2da1 stays OPEN pending city-upgrade + 24h post-install soak (Day-30 modal shape).
+
+**Day-31 soak result (2026-05-21):** first post-upgrade fire at 08:30:38 PT, +16m past predicted 08:14–08:18 window. **Preflight retry succeeded** (would have failed under old code) — confirms #2316's fix works for the race it was scoped to. Subsequent flatten exposed a deeper race that was previously masked by the old preflight abort; the post-flatten value-hash safety net (also part of #2316) caught it cleanly with quarantine marker `.gc/runtime/packs/dolt/compact-quarantine/hq` (`post-flatten value hash changed with row-count increase`). Net: #2316 was correctly scoped; the new failure mode is captured in [[mc-jhsp8y]] for follow-up. **No regression, no hot-fix PR.**
 
 ---
 

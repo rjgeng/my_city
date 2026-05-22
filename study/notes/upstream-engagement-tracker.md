@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-20 (Day-30 EOD — city-upgrade complete (`gc` HEAD-caa44a4 → HEAD-fad5d3f, supervisor restarted clean); §24c canonized (`/adopt-pr` adoption protocol, n=6 visible); mc-z92fpi + mc-iho25h filed as `hold-until-soak` non-gating follow-ups; **PR #2088 entered §24b** at 2026-05-20T16:13:41Z (quad341 write-access applied `status/reviewing`, no body); beads still v1.0.4; soak begins, first observation expected ~08:14–08:18 PT 5/21; no nudges sent — anti-plan held)
+**Last updated:** 2026-05-22 (Day-32 AM — **PR #2088 merged by quad341 Day-30 evening** (2026-05-20T18:45:45Z, 2h32m after the `status/reviewing` label → §24b *direct-merge* variant, first observed); PR #2136 unchanged since Day-27 nudge (day 4 of post-nudge silence, §24a continues); mc-jhsp8y soak continuing — next compactor fire ~08:29 PT today is the n=2 discriminator)
 
 **Static rules:** see `upstream-engagement-playbook.md` (`§24` = post-engagement protocols — §24a APPROVED stall, §24b REVIEWING stall, §24c `/adopt-pr` adoption; future sections append-only).
 
@@ -14,8 +14,8 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 |---|---|
 | Total engagements | 6 (4 PRs + 2 issue comments) |
 | PRs opened | 4 |
-| PRs merged | 2 (#2037, #2316) |
-| PRs awaiting maintainer | 2 (#2088, #2136) |
+| PRs merged | 3 (#2037, #2316, #2088) |
+| PRs awaiting maintainer | 1 (#2136) |
 | Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
 | Local-only beads (linked to upstream items) | 4 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge; mc-jhsp8y in-flatten race exposed Day-31 — soak for race-frequency characterization) |
@@ -24,34 +24,6 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 ---
 
 ## Active items
-
-### PR #2088 — `docs(convoy): clarify --help text re: workflows vs convoys`
-
-- **Repo:** `gastownhall/gascity`
-- **URL:** https://github.com/gastownhall/gascity/pull/2088
-- **State:** OPEN, **MERGEABLE, APPROVED by csells** (2026-05-16T00:01Z, on post-rebase HEAD `ca41269`). `reviewDecision` empty because csells is CONTRIBUTOR not maintainer — still awaiting merge by someone with write access.
-- **Day filed:** Day-22 (2026-05-13)
-- **Size:** +110 -15 (rebased; original commits replaced)
-- **HEAD SHA:** `ca41269` (post-rebase)
-- **Activity:** Created 2026-05-13T20:36Z; Copilot feedback addressed 2026-05-13T21:02Z; nudge posted 2026-05-15T21:25Z; **conflict resolved + force-push 2026-05-15T23:56Z**; **csells "docs lgtm" comment 2026-05-15T23:17Z then APPROVED on rebased HEAD 2026-05-16T00:01Z**
-- **Bead lineage:** none — surfaced organically during Day-22 sweep
-- **Last action by us:** rebased onto origin/main, dropped stale cli.md regen commit, regenerated cli.md fresh via `go run ./cmd/genschema`, force-pushed (`+ 513aaecd...ca412694`)
-- **Day-25 update:** post-rebase mergeable. Nudge stands; per protocol DO NOT nudge again. Wait it out.
-- **Day-26 check (2026-05-16 EOD):** **csells APPROVED** at 2026-05-16T00:01Z on post-rebase HEAD `ca41269` (initial check missed this because the `comments` JSON view doesn't include reviews — must use `reviews`/`latestReviews` fields). csells is `authorAssociation: CONTRIBUTOR`, so `reviewDecision` remains empty — approval is meaningful peer signal but does NOT auto-merge. Still waiting on maintainer with write access (e.g. sjarmak, who merged #2037).
-- **Day-27 check (2026-05-18 AM):** unchanged — `updatedAt` still 2026-05-16T00:01:45Z, ~2.5 days post-approval idle. Protocol: post-APPROVAL is wait-only, **DO NOT nudge** a second time.
-- **Day-30 update (2026-05-20 PM):** **`quad341` (write-access) labeled `status/reviewing` at 2026-05-20T16:13:41Z** (09:13 PT). §24a stall transitioned into §24b acknowledgement by a different maintainer than the original APPROVAL reviewer. No body submitted; 5h stale at check time. **§24b 0-24h wait window opens; DO NOT nudge.** Predicted next paths: (a) quad341 submits review body, (b) quad341 uses `/adopt-pr` (per §24c — plausible for a docs-only PR), or (c) stays in §24b stall.
-
-**What it does:** removes the misleading "Simple/Complex convoys" framing from `cmd_convoy.go` `Long:` description; adds an explicit disambiguation paragraph stating convoys ≠ workflows.
-
-**Maintainer cadence context:** recent merged PRs in this repo took 0-1 day from create to merge (8 of 8 sampled). #2088 is past that band but not by much.
-
-**Next action:**
-- [ ] **Wait until 2026-05-15 PM (~48h mark).** If still content-idle, leave a polite single-line "any thoughts on this?" comment.
-- [ ] If review comes in: address inline, push to same branch (per §24 playbook).
-
-**Risk:** Low. PR is small, CI green, content quality verified. Worst case: stays open longer than typical, eventually merges or gets superseded.
-
----
 
 ### PR #2136 — `fix(maintenance): retry mol-dog-jsonl push on concurrent ref-update race`
 
@@ -66,6 +38,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 - **Day-25 update (canonical 24h mark):** baseline rate 3 mol-dog-jsonl exit-1 / 343 fires = **0.87%**. Cross-rig: HQ + co_store + co_shipping. PR fix should drop this to near-zero. Real validation needs upstream merge + city upgrade + post-install soak. At upper edge of the "1-3 failures" decision bucket — one more failure in a comparable window triggers "reconsider fix shape" branch.
 - **Day-26 check (2026-05-16 EOD):** still OPEN/MERGEABLE, `updatedAt` 2026-05-14T22:28Z (unchanged since open). Zero comments ever. Content-idle ~48h — at the threshold for a "ready when you are" nudge on Day-27 if still silent.
 - **Day-27 check (2026-05-18 AM):** still no maintainer activity; content-idle ~93h. **Nudge sent** — G3 satisfied per Day-27 plan.
+- **Day-32 check (2026-05-22 AM):** unchanged — `updatedAt` still 2026-05-18T11:03:58Z, day 4 of post-nudge silence. CI re-verified: 74 SUCCESS + 22 SKIPPED, MERGEABLE, zero reviewers requested, only copilot-bot has ever commented. **§24a wait-only continues; DO NOT nudge.** Compare to #2088 trajectory: that one took 4.5 days post-APPROVAL before §24b label-then-merge — but #2136 has no APPROVAL yet (csells-style peer signal absent), so the comparable window is wider.
 
 **What it does:** wraps the single-shot `git push origin main` in `push_archive_main()` with a 3-attempt retry loop, 1-5s jittered sleep, re-fetch + re-rebase between attempts. Preserves `consecutive_push_failures` / `MAX_PUSH_FAILURES` escalation semantic.
 
@@ -143,6 +116,25 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 ---
 
 ## Closed / merged items
+
+### PR #2088 — `docs(convoy): clarify --help text re: workflows vs convoys` ✅
+
+- **Repo:** `gastownhall/gascity`
+- **URL:** https://github.com/gastownhall/gascity/pull/2088
+- **State:** **MERGED** by quad341 on 2026-05-20T18:45:45Z (11:45 PT) via merge commit `a652a26e`
+- **Day filed:** Day-22 (2026-05-13)
+- **Day merged:** Day-30 (2026-05-20)
+- **Cycle time:** opened 2026-05-13T20:36Z → merged 2026-05-20T18:45:45Z (~166h / 6.9 days)
+- **Final size:** +12 -6 (post-rebase final state; in-PR working tree was larger pre-rebase)
+- **Bead lineage:** none — surfaced organically during Day-22 sweep
+
+**What it did:** removed the misleading "Simple/Complex convoys" framing from `cmd_convoy.go` `Long:` description; added an explicit disambiguation paragraph stating convoys ≠ workflows.
+
+**Merge path:** **§24b direct-merge variant** — first observed instance. Trajectory: csells `CONTRIBUTOR` APPROVED 2026-05-16T00:01Z on post-rebase HEAD `ca41269` (§24a entered — APPROVED-but-no-write-access stall). Sat for ~4.5 days. On 2026-05-20T16:13:41Z (Day-30 09:13 PT), write-access maintainer `quad341` applied `status/reviewing` label without a review body → §24a transitioned to §24b. **2h32m later, the same maintainer direct-merged the PR** at 18:45:45Z without posting a review. No nudges sent during the §24b window (anti-plan held). Distinct from the §24c `/adopt-pr` automated-review path used on #2316: §24b direct-merge skips review-body entirely on the maintainer's authority, suitable for low-risk docs-only changes.
+
+**Status:** done, shipped. Third contribution to land upstream. **Reference proof point for the §24b direct-merge variant** of post-engagement stall resolution.
+
+---
 
 ### PR #2316 — `fix(dolt): retry preflight when HEAD races on busy DBs in gc dolt compact` ✅
 

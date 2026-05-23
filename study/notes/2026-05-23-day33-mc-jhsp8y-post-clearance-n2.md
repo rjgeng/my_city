@@ -30,7 +30,7 @@ Day-32 closed with two commits: `591a73b` (tracker housekeeping — #2088 moved 
 - **PR #2316:** MERGED Day-29, validated working Day-31 (preflight retry succeeded, safety net engaged correctly). No watch.
 - **Issue #3880 / beads release:** v1.0.4 still latest (~14d at Day-33 AM), mc-mxl4vc still blocked.
 - **`gc` binary:** HEAD-fad5d3f (Day-30 upgrade holds).
-- **gc supervisor:** PID 767, alive since 2026-05-21 04:12 AM (~50h continuous at Day-33 AM).
+- **gc supervisor:** PID 800, alive since 2026-05-22 17:51 PT (~13h continuous at Day-33 AM, 06:34 PT). *Day-32 EOD pre-flight line claimed PID 767 / ~50h — authoring error: PID 767 is Apple's `TrialArchivingService`, not gc. Real continuous run is shorter, which weakens G2 timing precision (cooldown clock had less settle time) but does not affect G1.*
 
 **Carry-forward Day-32 lessons:**
 
@@ -161,34 +161,79 @@ bd list | grep -E 'mc-(jhsp8y|1zccc2|4m2da1|w9iua4|mxl4vc|z92fpi|iho25h)'
 
 ## 6. Execution log
 
-### Step A: pre-fire clearance (pending — execute 5/23 ~07:00–08:25 PT)
+### Step A: pre-fire clearance (DONE 06:59 PT)
 
-### Step 1: morning read (pending — execute 5/23 ~08:35 PT)
+Marker content verified: `db=hq`, `reason=post-flatten value hash changed with row-count increase`, `created_at=2026-05-21T15:31:51Z`. Archived to `/tmp/mc-jhsp8y-day31-marker-archived-20260523-0659.txt`. Removed from `.gc/runtime/packs/dolt/compact-quarantine/hq`. Dir empty post-clearance.
 
-### Step 2: 5/23 compactor fire observation (pending — window 08:30–08:50 PT per G2)
+### Step 1: morning read (DONE 08:57 PT, post-fire)
 
-### Step 3: branch selection per §3 matrix (pending)
+`gc version` HEAD-fad5d3f (unchanged). Fire happened earlier in the window — see §6 Step 2.
 
-### Step 4: standard watches (#2136, beads release, bead list — pending)
+### Step 2: 5/23 compactor fire observation (DONE)
 
-### Step 5: EOD recheck + tracker / bead updates (pending)
+- `order.fired` 2026-05-23T08:48:35.756385-07:00 (+12m later than Day-31's 08:30:38; +12m later than Day-32's 08:36:12; trailing edge of the 08:30–08:50 G2 window with 1m25s margin)
+- `order.completed` 2026-05-23T08:49:06.080321-07:00 (30.3s elapsed — full preflight → flatten → post-flatten verify success path)
+- Quarantine dir: EMPTY post-fire. No new marker.
+- Pending-gc dir: not present (would have been populated only on failed run).
 
-### Step 6: Day-34 punt (pending)
+### Step 3: branch selection per §3 matrix (DONE — Branch (c))
+
+Matched **Branch (c) — "marker cleared, no new marker, exit-0 (clean fire)."** Predicted ~15%; happened. Modal Branch (a) (~70%) did not realize.
+
+Action per matrix: *"Update mc-jhsp8y: note 5/23 clean. Reconsider whether Day-31's writer overlap was atypical. Continue soak — 3+ clean fires to downgrade."*
+
+### Step 4: standard watches (DONE)
+
+- **PR #2136**: OPEN, `updatedAt=2026-05-18T11:03:58Z` (unchanged from Day-32). Day 5 of post-Day-27-nudge silence. G4 ✓.
+- **beads release**: v1.0.4 still latest (2026-05-09, 14d old). mc-mxl4vc still blocked. G3 ✓.
+- **watched beads**: mc-jhsp8y, mc-1zccc2, mc-4m2da1, mc-w9iua4, mc-mxl4vc, mc-z92fpi, mc-iho25h all OPEN (no closures).
+
+### Step 5: EOD recheck + tracker / bead updates (DONE / IN PROGRESS)
+
+- `mc-jhsp8y` note appended via `bd note --file` — captures today's clean fire, writer-presence evidence, Day-32 hypothesis weakening, rescinded acceptance criteria.
+- This plan file: §6 Steps 1–5 + verdicts/surprises/produced/lessons sections filled (this commit).
+- `upstream-engagement-tracker.md`: no update needed today (PR state unchanged).
+
+### Step 6: Day-34 punt (DONE)
+
+Day-34 plan stamped: `study/notes/2026-05-24-day34-mc-jhsp8y-soak-n2-and-g2-drift.md`. Two load-bearing predictions (G1 n=2 clean continuation, G2 drift discriminator — promoted from ambient per Day-33 lesson #3). No Step A (quarantine dir already empty). Widened fire-window 08:30–09:30 PT given Day-33 trajectory. Three new anti-plans: don't conclude bounded/unbounded on one point (#12), don't over-preserve a recurrence marker (#13), don't widen to routing investigation today (#14).
 
 ---
 
 ### G1–G4 verdicts (EOD)
 
-(pending)
+- **G1 — falsified.** Field prediction was "new marker w/ reason `post-flatten value hash changed with row-count increase`." Actual: no marker, exit-0. Matches the listed falsifier "(c) no marker + exit-0." Generator hypothesis ("hq receives concurrent writes during flatten → race is structurally reproducible on busy DBs") is weakened, not destroyed — writers were present, race did not fire. Some additional condition matters.
+
+- **G2 — confirmed but precarious.** Fire at 08:48:35 PT, within the 08:30–08:50 PT window with only 1m25s margin before falsification at 09:00+. Drift trajectory across three data points: 08:30:38 → 08:36:12 → 08:48:35 (Δ +5m34s, then +12m23s — accelerating). One more day inside the window, but if the pattern holds the window will be breached by Day-34 or Day-35.
+
+- **G3 — confirmed.** v1.0.4 still latest (~14d). mc-mxl4vc blocked.
+
+- **G4 — confirmed.** PR #2136 unchanged at 2026-05-18T11:03:58Z. Day 5 of post-Day-27-nudge silence. Wait-only per §24a.
 
 ### Surprises
 
-(pending)
+1. **Branch (c) realized, not modal (a).** Day-32 design analysis predicted reproduction with ~70% confidence based on writer-overlap reasoning. Today's clean fire under similar writer conditions (3 distinct actors active in the flatten window) means the simple model is wrong. **Either the wisp writes don't reach hq from the rigs we observed** (hello-world vs Day-31's co_shipping — rig-specific routing matters), **or the race needs a finer collision than "any writer during 30s."**
+
+2. **G2 drift is accelerating, not stabilizing.** Day-32 baseline hypothesis (b) was "Day-30 binary upgrade reordered cooldown-due-order dispatch; new fire-time is the new baseline, not a continuing trajectory." Three data points now: 08:30:38 → 08:36:12 (Δ +5m34s) → 08:48:35 (Δ +12m23s). Each interval is roughly double the previous. If the supervisor restart at 17:51 PT 5/22 is a confounder, the post-restart drift trajectory is steeper than pre-restart. The "drift bounded" hypothesis needs revisiting on Day-34.
+
+3. **A clean fire is itself useful test infrastructure.** The 30.3s success-path run is the first observed post-#2316 successful compact of hq. Confirms the full preflight → flatten → verify cycle works end-to-end. The two failure-day runs (Day-31 marker, Day-32 short-circuit) didn't prove the success path existed; today does.
 
 ### What the day actually produced
 
-(pending)
+1. **Falsification of the Day-32 reproduction claim.** The "structurally reproducible on busy hq" model is no longer load-bearing. mc-jhsp8y reverts to "evidence record, needs continued soak" — not a candidate for fix-shape design yet.
+
+2. **First successful post-#2316 hq compact observation.** Proves the success path is intact; quarantine is genuinely an exception, not the modal outcome.
+
+3. **G2 trajectory data flips from "post-upgrade baseline" to "active drift."** Day-34 needs to either (a) confirm drift continues (window breached by ~09:00 PT) or (b) confirm stabilization (next fire within 08:40–08:55).
+
+4. **Note appended to `mc-jhsp8y`** with today's evidence + rescinded acceptance criteria.
 
 ### Process lessons captured
 
-(pending)
+1. **Modal predictions of ~70% should not be treated as decided outcomes.** Day-32 §7 mostly read as "the race is reproducible, here are the fix candidates" — language drifted from "the modal branch is reproduction" toward "reproduction is established." Today's falsification is exactly what a 30% non-modal probability looks like. Resist the temptation to advance fix-design language until evidence clears 80%+ across n≥3 independent observations.
+
+2. **Concurrent-writer presence is necessary but not sufficient.** Today writers were active (hello-world/witness + controller + cache-reconcile) and the compact succeeded. The Day-32 "2 writers caused the race" narrative was a correlation in a sample of 1. Need to characterize *which* writes hit *which* db before reattempting the causal claim — `events.jsonl` actor field is rig-prefixed but doesn't tell us db-routing destination.
+
+3. **Trajectory data needs three points before assuming bounded.** Day-32 G2 confirmed-with-1m24s-of-falsifier was the warning sign that was discounted. Today's third point makes the trajectory legible. Generalization: any "confirmed but barely" prediction should auto-promote falsifier-watch on the next iteration.
+
+4. **Don't rescind acceptance criteria in a single update — flag the rescind in the bead note explicitly.** Today's `mc-jhsp8y` note rescinds Day-32's "n=2 = enough" and reverts to Day-31's "3+ clean fires." That kind of acceptance-criteria oscillation should be visible so a future reader doesn't latch onto the wrong revision.

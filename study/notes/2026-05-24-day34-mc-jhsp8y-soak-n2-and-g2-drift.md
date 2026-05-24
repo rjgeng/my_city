@@ -166,28 +166,67 @@ The disentanglement still works, but the timeline shifts back ~1 day. Requires e
 
 ## 6. Execution log
 
-### Step 1: morning read (pending — execute 5/24 ~09:15 PT)
+### Step 1: morning read (DONE 09:23 PT, +8m past fire window close)
 
-### Step 2: branch selection per §3 matrix (pending)
+`gc version` HEAD-fad5d3f. Supervisor PID 30349 etime 04:49:47 (continuous since 04:33:35 PT today, post-`gc init` restart). Fire happened in window — see Step 2.
 
-### Step 3: EOD recheck + tracker / bead updates (pending)
+### Step 2: branch selection per §3 matrix (DONE — Branch (b))
 
-### Step 4: Day-35 punt (pending)
+Matched **Branch (b) — "marker w/ same reason as Day-31."** Predicted ~25%; happened.
+
+- `order.fired` 2026-05-24T08:52:40.918494-07:00 (within 08:30–09:15 window ✓; +4m05s from Day-33)
+- `order.failed exit status 1` 2026-05-24T08:53:31.313297-07:00 (51s elapsed; between Day-31's 89s and Day-33's 30.3s)
+- Quarantine marker created 2026-05-24T08:53:22 PT on `hq`, reason: `post-flatten value hash changed with row-count increase` — **identical** to Day-31.
+
+Action per matrix: "Update mc-jhsp8y: characterized as sporadic. Investigate Day-33 vs Day-34 writer differences..." — done in §6 Step 3 below. Routing investigation deferred to Day-35 per anti-plan #14 (investigation follows characterization).
+
+### Step 3: EOD recheck + tracker / bead updates (DONE)
+
+- **Marker** archived to `/tmp/mc-jhsp8y-day34-marker-archived-20260524-0949.txt` and cleared per anti-plan #13. Day-35 starts with empty quarantine dir.
+- **mc-jhsp8y note** appended via `bd note --file` — captures n=2 recurrence, identical reason, and the sharpened writer-signature hypothesis (see §Surprises below).
+- **mc-w9iua4 CLOSED** — PR #2136 merged 2026-05-24T10:57:29Z (~03:57 PT 5/24), day 6 of post-Day-27-nudge silence. §24a wait-only protocol vindicated. Closing note cites the merge.
+- **upstream-engagement-tracker.md**: no update this commit (PR #2136 merge belongs in next tracker pass).
+
+### Step 4: Day-35 punt (DONE)
+
+Day-35 plan stamped: `study/notes/2026-05-25-day35-mc-jhsp8y-writer-signature-test.md`. Single load-bearing hypothesis (writer-signature discriminator). See §6 Step 4 of Day-35 plan for details.
 
 ---
 
 ### G1–G4 verdicts (EOD)
 
-(pending)
+- **G1 — falsified (in the marker direction).** Predicted ~55% clean continuation. Actual: Branch (b) marker, same reason as Day-31. The race recurs. The "weakened writer hypothesis" framing from Day-33 turns out to need only sharpening, not abandonment — writers matter, but timing-within-flatten matters more than raw presence.
+
+- **G2 — demoted/ambient as planned.** Fire at 08:52:40 PT (+4m05s from Day-33). Modest forward drift, NOT the doubling that the contaminated 3-point trajectory suggested. But supervisor was ~4h up (post-04:33 restart), so today's data doesn't disentangle supervisor-age from anything else — same regime as Day-31/32/33 fresh-wake. No G2 conclusion possible today; resets begin tomorrow.
+
+- **G3 — confirmed.** v1.0.4 still latest (15d). mc-mxl4vc still blocked.
+
+- **G4 — FALSIFIED in the good direction.** Predicted "PR #2136 stays OPEN, no maintainer activity." Actual: MERGED ~03:57 PT 5/24. Maintainer acted on day 6 of nudge silence, validating §24a wait-only. mc-w9iua4 closed as a direct consequence.
 
 ### Surprises
 
-(pending)
+1. **Writer-signature discriminator found.** Comparing Day-33 (clean) vs Day-34 (marker) writer ledgers reveals the missing variable from Day-32's "writer-overlap" hypothesis: it's not raw writer count, it's **whether a hq-writing scheduled order fires INSIDE the compactor's flatten window**. Day-33 had writers but no concurrent order-on-hq. Day-34 had `mol-dog-doctor` fire at 08:53:08 (28s into the 51s compactor flatten), creating 5 bead events on hq (mc-4hlg9b create + 4 updates at 08:53:29). Witnesses and controller wisps alone are insufficient; an order-fire mid-flatten is the new candidate trigger. This is the Day-35 test.
+
+2. **PR #2136 merge.** Six days of nudge silence ended with a clean merge. The model "silence is meaningful" (§24a) was wrong — silence was meaningful in the *reviewer's* timezone (maintainer ack just took 6 days). Updated heuristic for future PRs: §24a's "wait-only after the nudge" pattern works, but don't read silence as "rejected" — read it as "in queue."
+
+3. **G2 demotion was correct preparation.** Yesterday's pre-fire patch removed G2 as load-bearing in time. Without that, today's writeup would have spent budget trying to interpret a ~4h-uptime data point against a planned ~38h baseline. The 04:33 PT mistake (gc init) was actually well-handled at the planning layer.
 
 ### What the day actually produced
 
-(pending)
+1. **mc-jhsp8y refined**: n=2 recurrence + writer-signature hypothesis. From "evidence record" to "characterized candidate" — still not fix-ready, but the next test (Day-35 routing/timing) is now concrete.
+
+2. **mc-w9iua4 closed**: clean end-to-end on the diagnose→bead→PR→merge pipeline. Started Day-19 (post-Day-23 jsonl push triage), shipped Day-24 (#2136 opened), merged Day-34. ~10 day cycle.
+
+3. **PR-watch closure**: down to v1.0.5 release watch (G3) and any mc-jhsp8y derivative work. PR queue is empty.
+
+4. **Day-35 plan stamped** with a single load-bearing hypothesis (writer-signature discriminator). Narrower than Day-34 even, by design.
 
 ### Process lessons captured
 
-(pending)
+1. **Sharpen, don't abandon, hypotheses on inconvenient data.** Day-33's clean fire was treated as falsifying the Day-32 writer-overlap hypothesis; today's data shows the original was just under-specified. The fix is to sharpen ("writers IN flatten" vs "writers anywhere") rather than retreat. When n=2 evidence is "yes/no/yes," look for the discriminating variable across the difference, not for a different model.
+
+2. **Demote, don't keep load-bearing.** Yesterday's pre-fire memory + plan patch (demoting G2 after the supervisor restart) was the right move. Cost: a few minutes of editing. Benefit: today's EOD didn't have to retrofit a doomed prediction. Generalization: when a precondition fails, patch the plan before the test, not after.
+
+3. **§24a wait-only is sound — but reframe "silence."** Don't interpret 6+ days of PR silence as "rejected" or "stale" — interpret as "still in queue." The "nudge once then wait" protocol works; the failure mode would be re-nudging and burning maintainer goodwill, not under-nudging.
+
+4. **Bead lifecycle visibility.** mc-w9iua4's 10-day life (Day-19 → Day-34) is now a complete reference case for "what a successful diagnose→PR cycle looks like in this city." Worth flagging for future onboarding / wiki-ingest as a paired unit with the existing §24a playbook entries.

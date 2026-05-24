@@ -28,7 +28,7 @@ Day-33 closed with EOD writeup (§6 + verdicts + surprises + lessons) in `study/
 - **PR #2316:** MERGED Day-29. No watch.
 - **Issue #3880 / beads release:** v1.0.4 still latest (~15d by Day-34 AM). mc-mxl4vc still blocked.
 - **`gc` binary:** HEAD-fad5d3f (Day-30 upgrade, holds).
-- **gc supervisor:** PID 800, alive since 2026-05-22 17:51 PT. **At Day-34 fire (~08:50 PT 5/24) this will be ~38h continuous; at Day-35 fire ~62h continuous — only if user does not sleep the laptop or restart between.** Anti-plan #15 below makes this load-bearing.
+- **gc supervisor:** ~~PID 800 since 2026-05-22 17:51 PT~~ → **PID 30349 since 2026-05-24 ~04:33 PT** (~4h uptime at Day-34 fire). Anti-plan #15 was **VIOLATED** at 04:33 PT by a `gc init` invocation on a separate 4g-city outside my-city — that command restarts the shared supervisor process across ALL registered cities, not just the target city. Day-34 fire will land on a near-fresh supervisor instead of the planned ~38h. G2 experimental design is broken for today; reset baseline begins now.
 
 **Carry-forward Day-33 lessons (relevant subset):**
 
@@ -37,7 +37,9 @@ Day-33 closed with EOD writeup (§6 + verdicts + surprises + lessons) in `study/
 3. Any "confirmed but barely" prediction (G2 Day-33) auto-promotes falsifier-watch the next iteration. **This is why G2 is load-bearing today, not ambient.**
 4. Flag acceptance-criteria oscillations explicitly in bead notes. Done in Day-33's note.
 5. **Pull the longer events.jsonl history (including `.gc/events.jsonl.archive-*.gz`) before extrapolating any trajectory.** Day-33's "drift is accelerating" framing was an over-extrapolation off 2 post-upgrade intervals; the 8-day pre-upgrade history (5/13–5/20: 08:02 → 08:14, ~1-2 min/day) flips the read — what looks like sustained acceleration may be transient post-restart re-anchoring of the cooldown clock. Archive-aware before claim, always.
-6. **CRITICAL (Day-33 post-EOD reframe): the three fires used to compute G2's "drift trajectory" each happened on a different supervisor state.** Day-31 fire (08:30:38): supervisor uptime unknown. Day-32 fire (08:36:12): supervisor uptime unknown. Day-33 fire (08:48:35): supervisor uptime ~14h45m (PID 800, restart at 5/22 17:51 PT, probably a wake-from-sleep). What I framed in Day-33 EOD as "drift accelerating" is **confounded with supervisor-age-at-fire**. The Day-33 EOD writeup (commit 16753da) overstates G2 because of this confound; cleanest fix is to leave that record as-written (it reflects what was known Saturday evening) and capture the reframe here + in Day-34 EOD. **Day-34/Day-35 are now an experimental design: same-supervisor data points at ~38h and ~62h uptime to disentangle supervisor age from any other variable.** This is the only way out of the confound short of forcing a controlled restart, which is more invasive.
+6. **CRITICAL (Day-33 post-EOD reframe): the three fires used to compute G2's "drift trajectory" each happened on a different supervisor state.** Day-31 fire (08:30:38): supervisor uptime unknown. Day-32 fire (08:36:12): supervisor uptime unknown. Day-33 fire (08:48:35): supervisor uptime ~14h45m (PID 800, restart at 5/22 17:51 PT, probably a wake-from-sleep). What I framed in Day-33 EOD as "drift accelerating" is **confounded with supervisor-age-at-fire**. The Day-33 EOD writeup (commit 16753da) overstates G2 because of this confound; cleanest fix is to leave that record as-written (it reflects what was known Saturday evening) and capture the reframe here + in Day-34 EOD. **Day-34/Day-35 were planned as an experimental design: same-supervisor data points at ~38h and ~62h uptime to disentangle supervisor age from any other variable.** This is the only way out of the confound short of forcing a controlled restart, which is more invasive.
+
+7. **CRITICAL (added Day-34 pre-fire): `gc init` (and likely other `gc cities` / `gc upgrade` operations) restarts the supervisor process across ALL registered cities, not just the target city.** Discovered at 04:33 PT 5/24: user ran `gc init` for a separate 4g-city; PID 800 (my-city's supervisor) died, replaced by PID 30349. Anti-plan #15 was therefore not strict enough — it must cover any `gc` command in any directory that could touch the supervisor lifecycle, not just commands inside my-city. **Generalization for future plans: any `gc supervisor *`, `gc init`, `gc cities *`, `gc upgrade`, or `gc dashboard restart` — anywhere on the machine — is equivalent to a controlled restart of every city's supervisor.** Treat them as global-scope mutations.
 
 ---
 
@@ -46,7 +48,7 @@ Day-33 closed with EOD writeup (§6 + verdicts + surprises + lessons) in `study/
 ### Step 1 — Morning read (5/24 ~09:00 PT — tightened from initial ~09:15)
 
 ```bash
-date; gc version; ps -o pid,etime,command -p 800
+date; gc version; ps -o pid,etime,command -p 30349  # NB: supervisor restarted 04:33 PT 5/24; PID was 800
 
 # Today's compactor events — fire window 08:30–09:15 PT (tightened per longer-history analysis)
 grep -E '"type":"order\.(fired|completed|failed)"' .gc/events.jsonl \
@@ -79,7 +81,7 @@ bd list 2>/dev/null | grep -E 'mc-(jhsp8y|1zccc2|4m2da1|w9iua4|mxl4vc|z92fpi|iho
 
 ---
 
-## 3. Decision matrix (3 G1 branches × 4 G2 branches; G2 reframed as supervisor-age discriminator per Day-33 post-EOD lesson #6)
+## 3. Decision matrix (3 G1 branches; G2 demoted to ambient — design broken by 04:33 PT supervisor restart, see carry-forward lesson #7)
 
 | G1 fire outcome | Branch | Budget | Action |
 |---|---|---:|---|
@@ -88,14 +90,16 @@ bd list 2>/dev/null | grep -E 'mc-(jhsp8y|1zccc2|4m2da1|w9iua4|mxl4vc|z92fpi|iho
 | Marker w/ different reason | (c) Wider scope | 60–90 min | Update mc-jhsp8y: append variant. Reconsider whether multiple safety-net code paths are racing. |
 | No fire by 10:00 PT | "No fire" | 60–120 min | Diagnose dispatcher. Possibly separate bead. Distinct from G2 drift. |
 
-| G2 fire-time outcome (supervisor ~38h up) | Branch | Action |
-|---|---|---|
-| 08:47–08:53 PT (Δ ±3m from Day-33's 08:48:35) | **(α) Supervisor-age stabilization — modal** | At ~38h uptime the dispatcher has fully settled past whatever post-wake transient affected Day-33's 08:48:35. Same-supervisor fire-time is approximately constant; the apparent "drift" across Day-31/32/33 was a supervisor-age artifact. Day-35 (~62h) is the confirmation point. |
-| 08:30–08:47 PT (Δ -18m to -2m) | (β) Pre-wake equilibrium re-asserts | Same-supervisor fires gravitate back toward the pre-wake dispatch slot. Day-31's 08:30:38 may be the true equilibrium and the post-wake fires were the perturbation. |
-| 08:53–09:15 PT (Δ +5m to +27m) | (γ) Drift is real, supervisor-state-independent | The trajectory survives controlled supervisor age. Drift is a cooldown-due-order math property, not a wake transient. Day-35 needed to characterize bounded vs. unbounded under same-state. |
-| Outside 08:30–09:15 PT, or no fire by 09:30 | (δ) Dispatcher regression or marker block | Diagnose. If marker appeared (G1 branch (b)/(c)) and short-circuited compact, this duplicates Day-32's branch (d) shape — fire time may still be informative even if compact didn't complete. |
+**G2 table removed.** The supervisor-age discriminator design required ~38h continuous uptime at Day-34 fire; the 04:33 PT restart leaves ~4h at fire time, which lands in the same fresh-wake regime as the contaminated Day-31/32/33 data points. **G2 is demoted to ambient observation only** — record the fire time, but it carries no discriminating weight against the planned hypotheses today.
 
-**Modal expectation:** G1 = (a) clean, ~55%. G2 priors (revised under the supervisor-age frame): (α) stabilization, ~50%; (β) pre-wake re-assert, ~15%; (γ) supervisor-state-independent drift, ~25%; (δ) regression, ~10%. Joint modal: clean fire at ~08:47–08:53 PT.
+**Reset experimental design:** new supervisor PID 30349 becomes the new "day 0." Same-supervisor 3-point sequence now lands at:
+- Day-34 fire (~08:50 PT 5/24): ~4h uptime (today)
+- Day-35 fire (~08:50 PT 5/25): ~28h uptime
+- Day-36 fire (~08:50 PT 5/26): ~52h uptime
+
+The disentanglement still works, but the timeline shifts back ~1 day. Requires extending anti-plan #15 enforcement through Day-36 instead of Day-35.
+
+**Modal expectation:** G1 = (a) clean, ~55%. G2 = informational only, no priors today.
 
 ---
 
@@ -108,13 +112,11 @@ bd list 2>/dev/null | grep -E 'mc-(jhsp8y|1zccc2|4m2da1|w9iua4|mxl4vc|z92fpi|iho
   - *Generator:* Day-33 demonstrated the success path works post-#2316; the simple "busy hq → race" hypothesis is weakened. Default expectation is clean fire unless a sporadic condition (specific writer overlap on hq path) triggers.
   - *Falsifier:* marker appears (branch (b) or (c)).
 
-- **G2 (supervisor-age discriminator — reframed from drift trajectory):**
-  - *Field:* Fire-time lands within 08:30–09:15 PT, with supervisor PID 800 ~38h continuous at fire time (precondition: no laptop sleep or `gc restart` between Day-33 EOD and Day-34 fire — anti-plan #15). Discriminating outcomes:
-    - **(H1) Supervisor-age stabilization** — fire at 08:47–08:53 PT (Δ ±3m from Day-33). The apparent "drift" across Day-31/32/33 was supervisor-age-at-fire confound; same-supervisor fire-time is approximately constant. ~50% prior.
-    - **(H2) Pre-wake equilibrium re-asserts** — fire at 08:30–08:47 PT. Long uptime gravitates fire-time back toward the pre-wake dispatch slot. ~15% prior.
-    - **(H3) Drift is supervisor-state-independent** — fire at 08:53–09:15 PT (Δ +5-27m). The trajectory survives controlled supervisor age, so drift is a cooldown-due-order math property. ~25% prior.
-  - *Generator (reframed):* Day-33 EOD's "drift trajectory" framing was confounded because Day-31, Day-32, and Day-33 fires each happened on a different supervisor state (uptime unknown for the first two; ~14h45m for Day-33). The 3-point progression mixes "drift" with "supervisor age at fire." Day-34 (~38h) + Day-35 (~62h) under controlled supervisor state will disentangle this. **The question for today is not "does drift continue?" — it is "does fire-time stabilize when the dispatcher has time to fully settle past wake-from-sleep?"**
-  - *Falsifier:* Fire outside 08:30–09:15 PT → (H4) dispatcher regression (~10% prior, branch (δ)). Also falsified if anti-plan #15 is violated (supervisor restart between EOD and fire) — in that case G2 is untestable, mark "no data."
+- **G2 (DEMOTED to ambient — design broken by 04:33 PT supervisor restart):**
+  - *Status:* Anti-plan #15 was violated at 04:33 PT by a `gc init` for 4g-city (the command restarts the supervisor across ALL registered cities). PID 800 → PID 30349. Today's fire will land at ~4h supervisor uptime, in the same fresh-wake regime as Day-31/32/33 — cannot discriminate the H1/H2/H3 hypotheses without a clean same-supervisor multi-day sequence.
+  - *Field today:* Record `mol-dog-compactor` fire time as informational data only. No prior commitments.
+  - *Restart plan:* The same-supervisor experiment is rebaselined. Day-34 (~4h), Day-35 (~28h), Day-36 (~52h) becomes the new 3-point design IF anti-plan #15 (now generalized per carry-forward lesson #7) holds through 2026-05-26 fire window.
+  - *Falsifier (for the restart plan):* any further `gc supervisor`, `gc init`, `gc cities`, `gc upgrade`, or laptop sleep between now and Day-36 fire → restart the experiment again.
 
 - **G3 (beads release — ambient):**
   - *Field:* v1.0.4 stays latest. mc-mxl4vc remains blocked.
@@ -147,7 +149,18 @@ bd list 2>/dev/null | grep -E 'mc-(jhsp8y|1zccc2|4m2da1|w9iua4|mxl4vc|z92fpi|iho
 12. **Don't characterize the drift as bounded OR unbounded on a single Day-34 data point.** G2 needs Day-34 + Day-35 to discriminate. Today's job is to record the fourth point, not to conclude.
 13. **If branch (b) fires (marker recurrence), don't preserve the Day-34 marker for the same reason Day-32 needed Day-31's preserved.** A single recurrence after one clean fire is not enough to re-justify "manual-clear-only is the operational burden" framing. Clear it normally as part of next-day cycle planning, archive to /tmp like Day-33 did, move on.
 14. **Don't widen scope to writer-routing investigation today.** If G1 = (a) clean, soak continues mechanically. If G1 = (b) marker, the routing investigation is Day-35 work — anti-plan #11-equivalent: investigation follows characterization, not the other way around.
-15. **LOAD-BEARING: do not sleep the laptop, restart `gc`, or reboot between now (Day-33 EOD) and Day-35 fire (~5/25 08:50 PT).** The Day-34 and Day-35 fires are an experimental design — same-supervisor data points at ~38h and ~62h uptime — that disentangles the supervisor-age confound discovered post-Day-33-EOD (carry-forward lesson #6). Closing the lid is the most common accidental violation. If the supervisor PID changes between now and Day-35, G2 reverts to untestable and the disentanglement needs a fresh ~62h continuous run, costing 2+ more days. Step 1 morning read MUST start by checking `ps -o pid,etime,command -p 800` to verify the precondition before interpreting any fire data.
+15. **LOAD-BEARING (GENERALIZED after the 04:33 PT 5/24 violation): do not sleep the laptop, restart `gc`, reboot, OR invoke ANY of the following `gc` commands in ANY directory on the machine, between now and Day-36 fire (~5/26 08:50 PT):**
+    - `gc supervisor *` (start/stop/restart/reload)
+    - `gc init` (initializing any new city)
+    - `gc cities *` (add/remove/modify)
+    - `gc upgrade` (binary swap)
+    - `gc dashboard restart`
+    - Killing/restarting any `gc supervisor run` or `dolt-server` process
+    - Any operation that touches `/usr/local/bin/gc` (binary replacement)
+
+    **Original timeline (Day-34 + Day-35) is invalidated.** New timeline: Day-34 (~4h supervisor uptime, today), Day-35 (~28h), Day-36 (~52h). The supervisor restart at 04:33 PT happened because `gc init` is a global-scope mutation, not city-scoped — discovered the hard way (carry-forward lesson #7). Closing the lid is the most common accidental violation; running `gc init` in another directory is now also on the list.
+
+    Step 1 morning read MUST start by checking `ps -o pid,etime,command -p 30349` (new supervisor PID) to verify the precondition. If PID 30349 is gone or etime is reset, the rebaseline is broken again — restart the experiment for Day-37.
 
 ---
 

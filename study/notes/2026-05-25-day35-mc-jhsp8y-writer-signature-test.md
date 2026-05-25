@@ -138,28 +138,65 @@ The clean 2×2 here is intentional — the goal is a discriminating test, not co
 
 ### Step A: no clearance needed (DONE — quarantine dir empty entering Day-35)
 
-### Step 1: morning read (pending — execute 5/25 ~09:00 PT)
+### Step 1: morning read (DONE 09:04 PT first pass; 09:26 PT confirmation)
 
-### Step 2: branch selection per §3 matrix (pending)
+First-pass read at 09:04 found NO compactor fire today — initially concerning, but well within Day-34 anti-plan #15's stated "no fire by 09:30 PT" wait threshold. Re-checked at 09:26 PT: fire happened at 09:14:54 PT — just 21s before window close. See Step 2.
 
-### Step 3: EOD recheck + bead update (pending)
+### Step 2: branch selection per §3 matrix (DONE — Branch (a), hypothesis CONFIRMED)
 
-### Step 4: Day-36 punt (pending)
+- `order.fired` (compactor) 09:14:54.392 (+22m14s from Day-34's 08:52:40 — biggest G2 jump yet; ambient note)
+- `order.fired` (doctor) 09:15:23.723 — **29s INSIDE the compactor's 51s flatten window**
+- Marker written 09:15:45 PT on hq, reason: `post-flatten value hash changed with row-count increase` (identical to Day-31 and Day-34)
+- `order.failed exit status 1` (compactor) 09:16:00.330 (66s elapsed)
+
+Matched **Branch (a) — "doctor INSIDE flatten + marker → hypothesis confirmed."** Per §3 action: open fix-shape design bead at P3 (DONE — `mc-aep8yk`).
+
+Initial misread (Branch (d) falsification) was corrected within the same Step 1 cycle — earlier grep at 09:04 PT missed the 09:15:23 doctor fire because it hadn't happened yet. See §Surprises #2.
+
+### Step 3: EOD recheck + bead update (DONE)
+
+- **Marker** archived to `/tmp/mc-jhsp8y-day35-marker-archived-20260525-0931.txt` and cleared per anti-plan #13.
+- **mc-jhsp8y note** appended via `bd note --file` — n=3 confirmation + writer-signature table + status promotion from "candidate" to "characterized → ready for fix-shape design."
+- **mc-aep8yk CREATED** — new P3 decision bead for fix-shape design, discovered-from mc-jhsp8y. Enumerates 5 candidate fix shapes (A persistence-policy variant branching, B time-bound marker, C flatten-cycle retry, D doctor-fire deferral, E hq writer serialization) without picking one. Picking is a later diagnose-day.
+
+### Step 4: Day-36 punt (DONE)
+
+Day-36 plan stamped: `study/notes/2026-05-26-day36-mc-jhsp8y-soak-close-and-supervisor-age-final.md`. Narrow scope: continue soak, final supervisor-age data point (~52h continuous PID 30349), then anti-plan #15 LIFTS at Day-36 EOD enabling deferred work (gc-init-silent-cycle bead filing, fix-shape candidate selection, co_thinking/co_ops rig adds). See §6 Step 4 of Day-36 plan.
 
 ---
 
 ### G1–G3 verdicts (EOD)
 
-(pending)
+- **G1 — CONFIRMED.** Branch (a) per §3 matrix: doctor INSIDE flatten + marker. Three-day pattern (Day-33 outside/clean, Day-34 inside/marker, Day-35 inside/marker) supports the writer-signature discriminator. The race fires when `mol-dog-doctor` (or analogous hq-writing scheduled order) fires inside the compactor's flatten window AND creates beads on hq during that window. Wisp activity from witnesses/controller alone is insufficient.
+
+- **G2 — ambient, demoted (as planned).** Fire at 09:14:54 PT (+22m14s from Day-34's 08:52:40). Largest single-day jump observed yet, on continuous same-supervisor PID 30349 (~28h30m up). Cannot yet distinguish "supervisor-age stabilization with periodic excursions" from "true continuing drift" — Day-36 (~52h) is the final 3-point data point for the rebaselined experiment.
+
+- **G3 — confirmed.** v1.0.4 still latest (16d). mc-mxl4vc still blocked.
 
 ### Surprises
 
-(pending)
+1. **Late-edge fire (09:14:54, 21s before window close).** The drift jumped +22m14s from Day-34 (vs the prior pattern of +4-12m). At 09:04 PT first read, the compactor hadn't fired and the analysis was leaning toward Branch (δ) "no fire by 09:30 PT — dispatcher concern." Patience held; the fire happened at 09:14:54, exactly as a late-edge data point. **Process lesson: when at the edge of a prediction window, give it the full window before calling falsification.**
+
+2. **Branch-(d) → Branch-(a) within-cycle correction.** First analysis at 09:26 PT mis-classified Branch (d) (doctor outside flatten + marker = falsified) because the earlier 09:04 PT grep only caught 4 doctor fires up to 08:55:11 — the 09:15:23 fire hadn't happened yet at first-read time and wasn't in the cached result. Re-reading the writer ledger for the actual flatten window surfaced the 5th doctor fire. **Process lesson: when checking time-windowed data, the result is only valid as of the read timestamp; re-run greps that span "now" when "now" has advanced into the window of interest.**
+
+3. **Hypothesis confirmed at n=3 with clean 2:1 split.** Day-33 (the negative control case) and Day-34 + Day-35 (positive cases) form a clean discriminator. No "additional condition" needed beyond doctor-fire-inside-flatten. The Day-33 weakening of the original Day-32 "writers cause race" hypothesis was the right intermediate step — sharpening rather than abandoning, per Day-34 lesson #1.
 
 ### What the day actually produced
 
-(pending)
+1. **mc-jhsp8y promoted** from "characterized-candidate" to "characterized, ready for fix-shape design." Writer-signature discriminator validated at n=3.
+
+2. **mc-aep8yk filed** — fix-shape design bead with 5 candidate fix shapes enumerated. Decoupled from mc-jhsp8y's characterization role; can be reasoned about separately.
+
+3. **Day-36 plan stamped** narrow: continue soak (no new G1 since hypothesis is confirmed), final supervisor-age data point, prepare for anti-plan #15 lift at Day-36 EOD.
+
+4. **Process pattern validated**: "sharpen don't abandon" (Day-34 lesson #1) carried through Day-35 successfully. The disciplined hypothesis testing pattern (single load-bearing G1 per day, falsifier-watch elevated when prior day was "barely confirmed") produced clean n=3 evidence over 3 calendar days.
 
 ### Process lessons captured
 
-(pending)
+1. **Within-cycle correction is valid science.** First-pass classification at 09:26 PT was Branch (d); re-read at 09:26 with full-window data flipped it to Branch (a). This is NOT "moving the goalposts" — the test was specified before the data, the data arrived late, and the analysis updated when the missing data appeared. Document the initial misread in the process record (transparency) but don't treat the correction as suspect.
+
+2. **Time-windowed grep results need explicit "as of" timestamps.** When greping events.jsonl with a time-range filter at time T, all data with timestamps > T is by definition absent from the result. Re-run greps that look "complete" before deciding the data is genuinely absent — especially when checking edge-of-window cases.
+
+3. **Wait the full window before calling falsification on a no-fire branch.** Day-34 plan defined the "no fire by 09:30 PT" branch (δ) for a reason: the fire-window is 08:30–09:15, but the dispatcher-concern threshold is 09:30 to absorb late-edge fires. Honoring that threshold avoided a false-falsification call today.
+
+4. **Fix-shape design is a separate decision-day from fix-implementation.** mc-aep8yk is a `decision` type bead (not bug, not feature) — its acceptance is "pick a candidate," not "implement a fix." Resist the temptation to roll candidate-selection AND implementation into one bead; they have different cost profiles and different review needs.

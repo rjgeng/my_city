@@ -3,7 +3,8 @@
 **Branch**: `rjgeng/fix/gc-init-warn-cross-city-cycle` in `study/gascity-src/`
 **Commits (on fork, pushed)**:
 - `d0391e462` — initial warn+confirm guard
-- `63040ed30` — fixup: proceed silently when stdin is not a terminal (CI was breaking acceptance tests because the prompt's default-N aborted all scripted `gc init` invocations; standard Unix non-tty handling restored)
+- `63040ed30` — first non-tty fixup attempt using `isTerminalFunc` (file-mode-based char-device check). **Did not work** because /dev/null is a char device but not a tty — CI's `exec.Command` child inherits /dev/null stdin → false positive → prompt fired → abort.
+- `8f86a33ae` — **proper TTY detection via `golang.org/x/term.IsTerminal(fd)`** (real ioctl, not file-mode heuristic). Same commit applies all 4 Copilot review fixes (registry-error warning, drop unused `stdout` param, proper pluralization, `kill-and-respawn` wording).
 **Upstream target**: `gastownhall/gascity` (`origin/main` was `942a8f366` at branch-cut)
 **PR**: [#2638](https://github.com/gastownhall/gascity/pull/2638) — OPENED 2026-05-26 18:46Z (11:46 PT) by user, status/needs-triage
 **PR title (as opened)**: `fix(gc): warn before supervisor recycle during city init` (tightened from my long draft — action-first, scope-narrow form)

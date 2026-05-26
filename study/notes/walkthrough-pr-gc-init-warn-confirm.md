@@ -1,7 +1,9 @@
 # Walkthrough — PR: gc init silent supervisor-cycle warning
 
 **Branch**: `rjgeng/fix/gc-init-warn-cross-city-cycle` in `study/gascity-src/`
-**Commit (on fork, pushed)**: `d0391e462`
+**Commits (on fork, pushed)**:
+- `d0391e462` — initial warn+confirm guard
+- `63040ed30` — fixup: proceed silently when stdin is not a terminal (CI was breaking acceptance tests because the prompt's default-N aborted all scripted `gc init` invocations; standard Unix non-tty handling restored)
 **Upstream target**: `gastownhall/gascity` (`origin/main` was `942a8f366` at branch-cut)
 **PR**: [#2638](https://github.com/gastownhall/gascity/pull/2638) — OPENED 2026-05-26 18:46Z (11:46 PT) by user, status/needs-triage
 **PR title (as opened)**: `fix(gc): warn before supervisor recycle during city init` (tightened from my long draft — action-first, scope-narrow form)

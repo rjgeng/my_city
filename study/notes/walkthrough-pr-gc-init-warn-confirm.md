@@ -3,10 +3,10 @@
 **Branch**: `rjgeng/fix/gc-init-warn-cross-city-cycle` in `study/gascity-src/`
 **Commit (on fork, pushed)**: `d0391e462`
 **Upstream target**: `gastownhall/gascity` (`origin/main` was `942a8f366` at branch-cut)
-**PR-create URL** (open this Wed AM): https://github.com/rjgeng/gascity/pull/new/rjgeng/fix/gc-init-warn-cross-city-cycle
+**PR**: [#2638](https://github.com/gastownhall/gascity/pull/2638) — OPENED 2026-05-26 18:46Z (11:46 PT) by user, status/needs-triage
+**PR title (as opened)**: `fix(gc): warn before supervisor recycle during city init` (tightened from my long draft — action-first, scope-narrow form)
 **Tracks bead**: `mc-itt3xc` (filed 2026-05-26 Day-36+1)
 **AI-assist**: Implementation done by Claude Code Opus 4.7 under user direction
-**Target PR open**: Wed 2026-05-27 AM (US business hours for fastest review)
 
 ---
 
@@ -164,12 +164,12 @@ This patch was implemented with Claude Code Opus 4.7 assistance under user direc
 
 ---
 
-## Open items before opening the PR
+## Status: PR OPENED 2026-05-26
 
-1. ~~**Local validation** — built binary, verified `--yes` flag exposed on both `gc init` and `gc register` via `--help`. Unit tests already cover the function behavior end-to-end. Full multi-city run-through optional but not required pre-PR.~~ DONE.
-2. **PR title** sharp version: *"gc init silently cycles the global supervisor — naming implies city-scope, behavior is machine-scope, no warning before other cities' supervision is killed"*
-3. ~~**Push branch** to `fork` after final review.~~ DONE — see PR-create URL above.
-4. **Open PR** Wed 2026-05-27 AM via the URL above. Paste the PR description block (above section) into the body. Don't open Tue evening — drowns in maintainer inbox overnight.
+PR #2638 is open. All pre-PR items closed. Watch loop now:
+- mc-itt3xc tracks the bead; close on PR merge.
+- Maintainer triage (`status/needs-triage` label) → `kind/bug` or similar once triaged.
+- §24a wait-only protocol applies — no nudge until standard silence threshold (~Day-27 + 6 days reference from the mc-w9iua4 cycle, scaled to this PR's priority).
 
 ## Pre-commit hook note (for future contributors)
 

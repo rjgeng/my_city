@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-30 (Day-39 — **two upstream bug issues filed** for the dolt 2.0.8 wisp-corruption regression: **dolthub/dolt#11131** (root cause; first filing on a non-gastownhall repo) + **gastownhall/gascity#2814** (consumer; pin dolt 2.0.4), cross-linked. **mc-jhsp8y soak PAUSED** — the same corruption bricked my-city's controller; full recovery record in `study/notes/adr/0003-dolt-2.0.8-wisp-corruption-recovery.md`. PR #2136 still §24a wait-only.)
+**Last updated:** 2026-05-30 (Day-39 PM — **gascity#2814 triaged `priority/p0`** by maintainer julianknutsen ~32 min after filing. Two upstream bug issues filed for the dolt 2.0.8 wisp-corruption regression: **dolthub/dolt#11131** (root cause; first filing on a non-gastownhall repo) + **gastownhall/gascity#2814** (consumer; pin dolt 2.0.4, now **P0**), cross-linked. **mc-jhsp8y soak PAUSED** — the same corruption bricked my-city's controller; full recovery record in `study/notes/adr/0003-dolt-2.0.8-wisp-corruption-recovery.md`. PR #2136 still §24a wait-only.)
 
 **Scope note (Day-39):** tracker now spans `dolthub/dolt` as well, since the root-cause defect that hit gascity lives in the bundled dolt engine.
 
@@ -58,20 +58,24 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 - **Repo:** `gastownhall/gascity`
 - **URL:** https://github.com/gastownhall/gascity/issues/2814
-- **State:** OPEN — filed 2026-05-30
+- **State:** OPEN — filed 2026-05-30; **triaged `priority/p0` + `kind/bug`** by maintainer **julianknutsen** at **2026-05-30T20:40:04Z** (~32 min after filing; `status/needs-triage` bot label cleared; no comment).
 - **Day filed:** Day-39 (2026-05-30)
+- **Triage signal:** a trusted maintainer (same one who adopted PR #2316) reached **P0** in ~32 min with no pushback — strong validation that the report landed as serious. P0 rationale (self-evident, not stated): silent data corruption × unrecoverable × triggered by routine `gc upgrade` × full city outage × ships to all users via the bundled-dep bump.
 - **Type:** bug **issue** (consumer-side; asks to pin/revert the bundled dolt).
 - **Bead lineage:** ADR-0003; [[mc-jhsp8y]] soak **PAUSED**; tracking bead **DEFERRED**.
 - **Companion:** dolt#11131 (root cause; linked in the body).
-- **Last action by us:** filed + body backfilled with the dolt#11131 link (rjgeng, 2026-05-30).
+- **Last action by us:** filed + body backfilled (rjgeng, 2026-05-30); **§24 HOLD on PR escalation** — julianknutsen self-assigned, so instead of racing a competing PR, posted the drift diagnosis + a PR offer: https://github.com/gastownhall/gascity/issues/2814#issuecomment-4584822321
+- **Drift diagnosis (offered, not yet a PR):** `internal/doltversion/doltversion.go` `ManagedMin = "2.0.7"` is a **floor** (`CheckFinalMinimum` rejects only pre-release + below-min), so 2.0.8 ≥ 2.0.7 floats through; installed version comes from Homebrew `depends_on "dolt"` (latest). Engine builds: 2.0.4=`20260519` (good), 2.0.7=`20260526` (**pre-regression, intended pin safe**), 2.0.8=`20260528` (bad). **Minimal fix:** known-bad block on the `20260528`/2.0.8 engine, keep the floor. PR prepared in concept only — NOT branched/built (hold).
 
 **What it reports:** the Day-38 `gc upgrade` (HEAD-fad5d3f→8d6d6bb) pulled bundled dolt 2.0.4→2.0.8; the next wisp nonlocal-table migration under 2.0.8 corrupted `hq.wisps` (unreadable adaptive TEXT), bricking the controller (snapshot load → wisp search → panic) and blocking bd writes. Unrecoverable by dolt downgrade or surgery (wisp tables are nonlocal/federated). **Recommendation:** pin/revert bundled dolt to 2.0.4 until dolt#11131 lands; flags the 2.0.7-pinned-but-2.0.8-shipped discrepancy; suggests a pre-migration backup + a post-write decode preflight.
 
 **Dup-search (Day-39):** negative in gastownhall/gascity (#2615 managed-dolt heap, #2735 headless-city — both unrelated).
 
 **Next action:**
-- [ ] Watch for maintainer triage (gascity cadence known; §24 wait-only, no nudge yet).
-- [ ] When dolt#11131 resolves: comment with the fixed-dolt version; track the pin update.
+- [x] ~~Watch for maintainer triage~~ — done: **P0** by julianknutsen 2026-05-30T20:40Z.
+- [x] ~~Posted drift diagnosis + PR offer~~ (2026-05-30; §24 hold since julianknutsen self-assigned).
+- [ ] Await julianknutsen's response: if he greenlights / stalls → send the known-bad-block PR (branch `fix/block-known-bad-dolt-2.0.8`, guard in `doltversion.go`, body refs #2814 + dolt#11131). If he ships his own → verify the fixed-dolt version + cross-link.
+- [ ] When dolt#11131 resolves: confirm the fixed-dolt version; track the pin update.
 
 **Risk / watch:** low — concrete consumer ask (pin a version) with a clear root-cause link. Main dependency is upstream dolt#11131.
 

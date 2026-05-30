@@ -2,7 +2,9 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-22 (Day-32 AM — **PR #2088 merged by quad341 Day-30 evening** (2026-05-20T18:45:45Z, 2h32m after the `status/reviewing` label → §24b *direct-merge* variant, first observed); PR #2136 unchanged since Day-27 nudge (day 4 of post-nudge silence, §24a continues); mc-jhsp8y soak continuing — next compactor fire ~08:29 PT today is the n=2 discriminator)
+**Last updated:** 2026-05-30 (Day-39 — **two upstream bug issues filed** for the dolt 2.0.8 wisp-corruption regression: **dolthub/dolt#11131** (root cause; first filing on a non-gastownhall repo) + **gastownhall/gascity#2814** (consumer; pin dolt 2.0.4), cross-linked. **mc-jhsp8y soak PAUSED** — the same corruption bricked my-city's controller; full recovery record in `study/notes/adr/0003-dolt-2.0.8-wisp-corruption-recovery.md`. PR #2136 still §24a wait-only.)
+
+**Scope note (Day-39):** tracker now spans `dolthub/dolt` as well, since the root-cause defect that hit gascity lives in the bundled dolt engine.
 
 **Static rules:** see `upstream-engagement-playbook.md` (`§24` = post-engagement protocols — §24a APPROVED stall, §24b REVIEWING stall, §24c `/adopt-pr` adoption; future sections append-only).
 
@@ -12,18 +14,68 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 | Metric | Value |
 |---|---|
-| Total engagements | 6 (4 PRs + 2 issue comments) |
+| Total engagements | 8 (4 PRs + 2 issue comments + 2 filed bug issues) |
 | PRs opened | 4 |
 | PRs merged | 3 (#2037, #2316, #2088) |
 | PRs awaiting maintainer | 1 (#2136) |
 | Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
+| Bug issues filed (authored) | 2 (dolthub/dolt#11131 root cause + gastownhall/gascity#2814 consumer — Day-39 dolt-2.0.8 wisp corruption) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
 | Local-only beads (linked to upstream items) | 4 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge; mc-jhsp8y in-flatten race exposed Day-31 — soak for race-frequency characterization) |
-| Repos touched | 2 (gascity, beads) |
+| Repos touched | 3 (gascity, beads, dolt) |
 
 ---
 
 ## Active items
+
+### Issue #11131 (dolthub/dolt) — `Dolt 2.0.8: adaptive out-of-line TEXT written via migration is unreadable — "invalid hash length: 19" (regression vs 2.0.4)`
+
+- **Repo:** `dolthub/dolt` (⚠️ **first non-gastownhall repo** — the defect is in the bundled dolt engine, not gascity)
+- **URL:** https://github.com/dolthub/dolt/issues/11131
+- **State:** OPEN — filed 2026-05-30
+- **Day filed:** Day-39 (2026-05-30)
+- **Type:** bug **issue**, not a PR — the defect is in the dolt engine; we cannot PR a fix, so this is a root-cause report (+ private data-dir / bisect offer).
+- **Bead lineage:** ADR-0003 (recovery record); [[mc-jhsp8y]] soak **PAUSED** by this corruption; dedicated tracking bead **DEFERRED** (bd writes blocked by the same bug).
+- **Companion:** gascity#2814 (consumer-side; cross-linked both ways).
+- **Last action by us:** filed + title tightened (rjgeng, 2026-05-30); posted a **control-finding comment** (gastownhall-logs: same 2.0.8 + same migration, only inline values → unaffected; isolates the bug to the out-of-line path) — https://github.com/dolthub/dolt/issues/11131#issuecomment-4584582261
+
+**What it reports:** dolt 2.0.8 (go-mysql-server `20260528`) wrote on-disk adaptive `longtext` values in `hq.wisps` that no engine can read back — every decode panics `invalid hash length: 19` (`AdaptiveValue.convertToTextStorage` → `hash.New`: a 19-byte buffer where a 20-byte out-of-line hash is expected). The writer can't read its own output and 2.0.4 can't either → write-side corruption, regression vs 2.0.4.
+
+**Dup-search (Day-39):** negative in dolthub/dolt + go-mysql-server. Related-not-dup: dolt **#11095** (TextStorage `REGEXP_REPLACE` panic, closed 2026-05-22 — same `val.TextStorage` subsystem, just before the `20260528` build).
+
+**Repro:** **NEGATIVE in pure dolt 2.0.8** (insert→1 MB, `INSERT…SELECT`, `ALTER ADD COLUMN`, cross-version read all clean). Trigger narrowed to beads' nonlocal-table migration write path. Offered the corrupted data dir privately + a `20260519→20260528` bisect.
+
+**Next action:**
+- [ ] Watch for maintainer triage/label. dolthub cadence unknown — establish it before any nudge (§24 wait-only).
+- [ ] If asked: share `.beads/dolt.BROKEN-postsurgery-20260530` privately; offer to bisect.
+- [ ] When a fixed dolt ships: re-test wisp rebuild → resume the mc-jhsp8y soak.
+
+**Risk / watch:** the "no minimal repro" framing could draw a premature "can't reproduce" bounce — mitigated by the explicit negative-repro table, the data-dir offer, and the "via migration / out-of-line" title qualifier. First filing on a non-gastownhall repo; maintainer norms unknown.
+
+---
+
+### Issue #2814 (gastownhall/gascity) — `Bundled dolt 2.0.8 corrupts hq.wisps on upgrade → city bricks; pin to 2.0.4`
+
+- **Repo:** `gastownhall/gascity`
+- **URL:** https://github.com/gastownhall/gascity/issues/2814
+- **State:** OPEN — filed 2026-05-30
+- **Day filed:** Day-39 (2026-05-30)
+- **Type:** bug **issue** (consumer-side; asks to pin/revert the bundled dolt).
+- **Bead lineage:** ADR-0003; [[mc-jhsp8y]] soak **PAUSED**; tracking bead **DEFERRED**.
+- **Companion:** dolt#11131 (root cause; linked in the body).
+- **Last action by us:** filed + body backfilled with the dolt#11131 link (rjgeng, 2026-05-30).
+
+**What it reports:** the Day-38 `gc upgrade` (HEAD-fad5d3f→8d6d6bb) pulled bundled dolt 2.0.4→2.0.8; the next wisp nonlocal-table migration under 2.0.8 corrupted `hq.wisps` (unreadable adaptive TEXT), bricking the controller (snapshot load → wisp search → panic) and blocking bd writes. Unrecoverable by dolt downgrade or surgery (wisp tables are nonlocal/federated). **Recommendation:** pin/revert bundled dolt to 2.0.4 until dolt#11131 lands; flags the 2.0.7-pinned-but-2.0.8-shipped discrepancy; suggests a pre-migration backup + a post-write decode preflight.
+
+**Dup-search (Day-39):** negative in gastownhall/gascity (#2615 managed-dolt heap, #2735 headless-city — both unrelated).
+
+**Next action:**
+- [ ] Watch for maintainer triage (gascity cadence known; §24 wait-only, no nudge yet).
+- [ ] When dolt#11131 resolves: comment with the fixed-dolt version; track the pin update.
+
+**Risk / watch:** low — concrete consumer ask (pin a version) with a clear root-cause link. Main dependency is upstream dolt#11131.
+
+---
 
 ### PR #2136 — `fix(maintenance): retry mol-dog-jsonl push on concurrent ref-update race`
 

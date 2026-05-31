@@ -2,6 +2,9 @@
 provider = "claude"
 global_fragments = ["command-glossary", "operational-awareness"]
 
+[defaults.rig.imports.gastown]
+source = ".gc/system/packs/gastown"
+
 [[rigs]]
 name = "co_store"
 [rigs.imports]

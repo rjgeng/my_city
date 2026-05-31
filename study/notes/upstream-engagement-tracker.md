@@ -2,7 +2,9 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-30 (Day-39 PM — **gascity#2814 triaged `priority/p0`** by maintainer julianknutsen ~32 min after filing. Two upstream bug issues filed for the dolt 2.0.8 wisp-corruption regression: **dolthub/dolt#11131** (root cause; first filing on a non-gastownhall repo) + **gastownhall/gascity#2814** (consumer; pin dolt 2.0.4, now **P0**), cross-linked. **mc-jhsp8y soak PAUSED** — the same corruption bricked my-city's controller; full recovery record in `study/notes/adr/0003-dolt-2.0.8-wisp-corruption-recovery.md`. PR #2136 still §24a wait-only.)
+**Last updated:** 2026-05-31 (Day-41 — **dolthub/dolt#11131 RESOLVED**: root cause confirmed (schema-side encoding drift, *not* data corruption), **fixed in dolt v2.1.0**; all 2.x <2.1.0 being **recalled**; agent-produced, dolthub-unvetted repair tool on branch `zachmu/schema-repair-tool`. **gascity#2814**: julianknutsen posted an upstream-escalation status (matches dolt root cause); the PR offer is still unaddressed → **§24 HOLD continues**, and the premise shifted — the recall covers 2.0.7 too, so the correct guard is `ManagedMin → 2.1.0`, not a 2.0.8 block. Recovery scout (read-only): **2.1.0 alone does NOT recover my-city**; `migrate-adaptive` (the `dolt_ignore` force-inline path) is required — full assessment in `study/notes/2026-05-31-day41-schemadrift-scout-findings.md`. **mc-jhsp8y soak still PAUSED.** PR #2136 still §24a wait-only.)
+
+**Prior update:** 2026-05-30 (Day-39 PM — **gascity#2814 triaged `priority/p0`** by maintainer julianknutsen ~32 min after filing. Two upstream bug issues filed for the dolt 2.0.8 wisp-corruption regression: **dolthub/dolt#11131** (root cause; first filing on a non-gastownhall repo) + **gastownhall/gascity#2814** (consumer; pin dolt 2.0.4, now **P0**), cross-linked. **mc-jhsp8y soak PAUSED** — the same corruption bricked my-city's controller; full recovery record in `study/notes/adr/0003-dolt-2.0.8-wisp-corruption-recovery.md`. PR #2136 still §24a wait-only.)
 
 **Scope note (Day-39):** tracker now spans `dolthub/dolt` as well, since the root-cause defect that hit gascity lives in the bundled dolt engine.
 
@@ -19,7 +21,7 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 | PRs merged | 3 (#2037, #2316, #2088) |
 | PRs awaiting maintainer | 1 (#2136) |
 | Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
-| Bug issues filed (authored) | 2 (dolthub/dolt#11131 root cause + gastownhall/gascity#2814 consumer — Day-39 dolt-2.0.8 wisp corruption) |
+| Bug issues filed (authored) | 2 (dolthub/dolt#11131 root cause — **RESOLVED in dolt v2.1.0, Day-41** + gastownhall/gascity#2814 consumer, OPEN/P0 — Day-39 dolt-2.0.8 wisp corruption) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
 | Local-only beads (linked to upstream items) | 4 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge; mc-jhsp8y in-flatten race exposed Day-31 — soak for race-frequency characterization) |
 | Repos touched | 3 (gascity, beads, dolt) |
@@ -32,12 +34,13 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 - **Repo:** `dolthub/dolt` (⚠️ **first non-gastownhall repo** — the defect is in the bundled dolt engine, not gascity)
 - **URL:** https://github.com/dolthub/dolt/issues/11131
-- **State:** OPEN — filed 2026-05-30
-- **Day filed:** Day-39 (2026-05-30)
+- **State:** **RESOLVED** — filed 2026-05-30; **fixed in dolt `v2.1.0`** (released 2026-05-31); all 2.x releases prior to 2.1.0 being **recalled**.
+- **Day filed:** Day-39 (2026-05-30); **Day resolved:** Day-41 (2026-05-31)
 - **Type:** bug **issue**, not a PR — the defect is in the dolt engine; we cannot PR a fix, so this is a root-cause report (+ private data-dir / bisect offer).
 - **Bead lineage:** ADR-0003 (recovery record); [[mc-jhsp8y]] soak **PAUSED** by this corruption; dedicated tracking bead **DEFERRED** (bd writes blocked by the same bug).
 - **Companion:** gascity#2814 (consumer-side; cross-linked both ways).
-- **Last action by us:** filed + title tightened (rjgeng, 2026-05-30); posted a **control-finding comment** (gastownhall-logs: same 2.0.8 + same migration, only inline values → unaffected; isolates the bug to the out-of-line path) — https://github.com/dolthub/dolt/issues/11131#issuecomment-4584582261
+- **Last action by us:** filed + title tightened (rjgeng, 2026-05-30); posted a **control-finding comment** (gastownhall-logs: same 2.0.8 + same migration, only inline values → unaffected; isolates the bug to the out-of-line path) — https://github.com/dolthub/dolt/issues/11131#issuecomment-4584582261. **Day-41: no further action by us — dolthub resolved it without needing our data dir.**
+- **Maintainer activity (Day-41, 2026-05-31):** reltuk + zachmu **confirmed the repro and root cause** — schema corruption, *not* data: `TEXT→LONGTEXT` ALTER skipped a required row rewrite because the storage *encoding* changed (`StringAddrEnc → StringAdaptiveEnc`) even though SQL-type widening looked rewrite-free. **zachmu: fixed in `v2.1.0` (releasing now); all 2.x <2.1.0 recalled.** Schema-repair tooling (`dolt admin schema-encoding-drift` — check/repair/recover-rows/migrate-adaptive) shipped on branch `zachmu/schema-repair-tool` — explicitly *agent-produced, not yet fully vetted, not in any public release; back up `.dolt` first*. timsehn flagged our exact case: wisps are dolt-ignored, so the self-service `dolt reset` route does NOT apply → the tool is required.
 
 **What it reports:** dolt 2.0.8 (go-mysql-server `20260528`) wrote on-disk adaptive `longtext` values in `hq.wisps` that no engine can read back — every decode panics `invalid hash length: 19` (`AdaptiveValue.convertToTextStorage` → `hash.New`: a 19-byte buffer where a 20-byte out-of-line hash is expected). The writer can't read its own output and 2.0.4 can't either → write-side corruption, regression vs 2.0.4.
 
@@ -45,12 +48,13 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 **Repro:** **NEGATIVE in pure dolt 2.0.8** (insert→1 MB, `INSERT…SELECT`, `ALTER ADD COLUMN`, cross-version read all clean). Trigger narrowed to beads' nonlocal-table migration write path. Offered the corrupted data dir privately + a `20260519→20260528` bisect.
 
-**Next action:**
-- [ ] Watch for maintainer triage/label. dolthub cadence unknown — establish it before any nudge (§24 wait-only).
-- [ ] If asked: share `.beads/dolt.BROKEN-postsurgery-20260530` privately; offer to bisect.
-- [ ] When a fixed dolt ships: re-test wisp rebuild → resume the mc-jhsp8y soak.
+**Next action (recovery is now a LOCAL track — the upstream issue is resolved):**
+- [x] ~~Watch for maintainer triage~~ — resolved Day-41 (fixed in 2.1.0).
+- [ ] **G-a (gating UNKNOWN): is `hq.wisps` keyless?** `migrate-adaptive` refuses keyless tables — if so, none of the 3 write paths work → need direct dolthub guidance. Determine via the tool's own `check` (never panics), not a raw `SELECT`.
+- [ ] **Decide** *wait-for-vetted-release* vs. *run the branch tool* under gates G-b (2.1.0+branch binary built without disturbing the 2.0.4 guard symlink), G-c (explicit auth + verified 5.7G backup), G-d (accept the unvetted tool on postgres-tier wisp data). Recommendation leans wait-for-vetted-release / dolthub sign-off.
+- [ ] Once wisps recovered → resume the mc-jhsp8y soak; append the deferred bead notes; file the tracking bead.
 
-**Risk / watch:** the "no minimal repro" framing could draw a premature "can't reproduce" bounce — mitigated by the explicit negative-repro table, the data-dir offer, and the "via migration / out-of-line" title qualifier. First filing on a non-gastownhall repo; maintainer norms unknown.
+**Risk / watch:** the resolution is clean, but execution risk has shifted to *recovery*: the repair tool is dolthub-unvetted, and the keyless question (G-a) could block all three write paths. Do NOT run any write path without G-a resolved + auth + verified backup (anti-plans #28/#29).
 
 ---
 
@@ -71,13 +75,18 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 **Dup-search (Day-39):** negative in gastownhall/gascity (#2615 managed-dolt heap, #2735 headless-city — both unrelated).
 
+**Day-41 maintainer activity (2026-05-31):** julianknutsen posted an **upstream-escalation status** comment (matches dolt's confirmed root cause; links the dolt#11131 repro + introduction-trace comments). He did **NOT** address rjgeng's PR offer → §24 HOLD continues; **no nudge, no competing PR** (anti-plan #27). **No comment posted by us today** — he owns the floor and already knows about 2.1.0/recall.
+
+**Premise shift (Day-41):** the prepared "block known-bad 2.0.8, keep the 2.0.7 floor" PR is now **partly OBE** — dolt is recalling *everything* <2.1.0, including 2.0.7. The correct guard is `ManagedMin → 2.1.0` (once the Homebrew formula ships it), not a narrow 2.0.8 block. Owner sets the floor; we hold.
+
 **Next action:**
 - [x] ~~Watch for maintainer triage~~ — done: **P0** by julianknutsen 2026-05-30T20:40Z.
 - [x] ~~Posted drift diagnosis + PR offer~~ (2026-05-30; §24 hold since julianknutsen self-assigned).
-- [ ] Await julianknutsen's response: if he greenlights / stalls → send the known-bad-block PR (branch `fix/block-known-bad-dolt-2.0.8`, guard in `doltversion.go`, body refs #2814 + dolt#11131). If he ships his own → verify the fixed-dolt version + cross-link.
-- [ ] When dolt#11131 resolves: confirm the fixed-dolt version; track the pin update.
+- [x] ~~Await julianknutsen's response~~ — Day-41: he posted escalation status (did not address the PR offer). **Still HOLD.**
+- [ ] If he greenlights / stalls → send the floor-bump PR (now `ManagedMin → 2.1.0`, not a 2.0.8 block; body refs #2814 + dolt#11131, STOP-before-`pr create`). If he ships his own floor bump → verify it lands on 2.1.0 + cross-link.
+- [ ] Track when the gascity Homebrew formula / bundled-dep bump moves to dolt 2.1.0 (the recall makes this likely imminent).
 
-**Risk / watch:** low — concrete consumer ask (pin a version) with a clear root-cause link. Main dependency is upstream dolt#11131.
+**Risk / watch:** low — concrete consumer ask, clear root cause now fixed upstream. Main remaining question is whether the maintainer bumps the floor to 2.1.0 himself or invites the PR.
 
 ---
 

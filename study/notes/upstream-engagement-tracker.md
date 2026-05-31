@@ -50,8 +50,8 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 **Next action (recovery is now a LOCAL track — the upstream issue is resolved):**
 - [x] ~~Watch for maintainer triage~~ — resolved Day-41 (fixed in 2.1.0).
-- [ ] **G-a (gating UNKNOWN): is `hq.wisps` keyless?** `migrate-adaptive` refuses keyless tables — if so, none of the 3 write paths work → need direct dolthub guidance. Determine via the tool's own `check` (never panics), not a raw `SELECT`.
-- [ ] **Decide** *wait-for-vetted-release* vs. *run the branch tool* under gates G-b (2.1.0+branch binary built without disturbing the 2.0.4 guard symlink), G-c (explicit auth + verified 5.7G backup), G-d (accept the unvetted tool on postgres-tier wisp data). Recommendation leans wait-for-vetted-release / dolthub sign-off.
+- [x] ~~**G-a: is `hq.wisps` keyless?**~~ — **RESOLVED 2026-05-31 (hub):** NOT keyless — read-only `SHOW CREATE TABLE` on the restored dir confirmed `PRIMARY KEY (id)` → `migrate-adaptive` viable. Corrupted columns = the 5 longtext bodies (`description`, `design`, `acceptance_criteria`, `notes`, `close_reason`). Settled via the safe route; the unvetted tool was NOT built.
+- [ ] **Decision (stands): WAIT for dolthub to fold the repair into a vetted release** before running any repair code on wisp data — do NOT build the unvetted `zachmu/schema-repair-tool` binary. Gates for the eventual run: G-b (vetted binary), G-c (explicit auth + verified 5.7G backup), G-d (no longer "accept unvetted tool" — superseded by waiting for vetted). Runbook: back up `.dolt` → `check` (read-only) → `migrate-adaptive` on the 5 columns.
 - [ ] Once wisps recovered → resume the mc-jhsp8y soak; append the deferred bead notes; file the tracking bead.
 
 **Risk / watch:** the resolution is clean, but execution risk has shifted to *recovery*: the repair tool is dolthub-unvetted, and the keyless question (G-a) could block all three write paths. Do NOT run any write path without G-a resolved + auth + verified backup (anti-plans #28/#29).

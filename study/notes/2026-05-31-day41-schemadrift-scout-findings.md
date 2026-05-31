@@ -37,7 +37,7 @@
 
 ## Gates before ANY execution (all must clear — none cleared today)
 
-- **G-a (gating UNKNOWN): is `hq.wisps` keyless?** `migrate-adaptive` (and the ignored-table path) **refuses keyless tables**. If wisps is keyless, NONE of the three write paths work → need direct dolthub guidance. Must be determined via the tool's own `check` (which never panics) or dolthub — NOT a raw `SELECT` (corrupted-row reads panic).
+- **G-a — RESOLVED (2026-05-31, hub): `hq.wisps` is NOT keyless.** A read-only `SHOW CREATE TABLE hq.wisps` against the restored `~/my-city/.beads/dolt` (no server, no writes, no symlink touch) confirmed **`PRIMARY KEY (id)`** → `migrate-adaptive` is viable. PK is a stable design property, so it holds for the BROKEN dir too. The corrupted out-of-line columns are the **5 longtext bodies: `description`, `design`, `acceptance_criteria`, `notes`, `close_reason`** — these are the `migrate-adaptive --column` targets. Settled via the safe route, with **zero anti-plan #28 exposure**; building the unvetted tool just to learn keyless-ness is NO LONGER needed. (The tool's `check` would add a fuller corruption-shape diagnosis — nice-to-have, not a blocker, and not worth building an unvetted binary while we wait for a vetted release.)
 - **G-b: a `2.1.0`+branch dolt binary** must be built/obtained in isolation, WITHOUT disturbing the 2.0.4 guard symlink (anti-plan #28) — never `brew link` / replace `/usr/local/bin/dolt`.
 - **G-c: explicit user auth + the verified 5.7G backup** (`.beads/dolt.backup-20260530T1129-pre-reset`) in hand — `migrate-adaptive` WRITES (persists the working set). Anti-plan #29.
 - **G-d: acceptance of an agent-produced, dolthub-unvetted tool** on postgres-tier wisp data. **Recommendation: prefer waiting for dolthub to fold the repair into a vetted release, or get their direct sign-off, before running the branch tool** — given the data sensitivity and that the tool is explicitly un-vetted.
@@ -45,6 +45,7 @@
 
 ## Bottom line / carry-forward
 - **PR stays HELD** (Branch C, §24, anti-plan #27); owner sets the `ManagedMin → 2.1.0` floor.
-- **my-city recovery now has a concrete path** — `migrate-adaptive` — but it is GATED on G-a–G-d; nothing executed today.
-- **Lowest-regret next step:** resolve **G-a (is wisps keyless?)** read-only, then decide *wait-for-vetted-release* vs. *run-the-branch-tool under G-b/G-c*. No destructive action without explicit auth + verified backup.
+- **my-city recovery now has a concrete path** — `migrate-adaptive` on the 5 longtext columns — with **G-a RESOLVED** (not keyless, `PRIMARY KEY (id)`). Remaining gates are all about *when/how to run it safely*: G-b (binary in isolation), G-c (auth + verified backup), G-d (vetted tool). Nothing executed today.
+- **Strategic call (stands): WAIT for dolthub to fold the repair into a vetted `schema-encoding-drift` release** before running any repair code on wisp data. Nothing is degrading; soak stays paused (anti-plan #30); do NOT build the unvetted `zachmu/schema-repair-tool` binary in the meantime.
+- **Recovery runbook (when a vetted release ships):** back up `.dolt` → `check` (read-only) → `migrate-adaptive` on each of the 5 longtext columns (`description`, `design`, `acceptance_criteria`, `notes`, `close_reason`), with explicit auth (#29) and the verified 5.7G backup in hand.
 - **mc-jhsp8y** stays PAUSED (anti-plan #30); bd writes still blocked → no bead mutations possible.

@@ -1,8 +1,8 @@
-# Day 40 — dolt 2.0.8 incident follow-up (watch/respond day)
+# Day 41 — dolt 2.0.8 incident follow-up (watch/respond day)
 
-- **Plan authored:** 2026-05-30 (Day-39 EOD)
-- **Planned execution:** 2026-05-31 (slips with the plan per day-numbering convention)
-- **Shape:** NOT the original "read the mc-jhsp8y soak fire" — that soak is **PAUSED** by the dolt 2.0.8 wisp corruption (see ADR-0003). Day-40 is a watch/respond day on the two upstream items + (optional) recovery-feasibility scouting. my-city's controller stays down until the data plane is rebuilt.
+- **Plan authored:** 2026-05-30 (Day-39–40 incident EOD)
+- **Planned execution:** 2026-05-31 (slips with the plan per day-numbering convention); EXECUTED 2026-05-31 — findings in `2026-05-31-day41-schemadrift-scout-findings.md`
+- **Shape:** NOT the original "read the mc-jhsp8y soak fire" — that soak is **PAUSED** by the dolt 2.0.8 wisp corruption (see ADR-0003). Day-41 is a watch/respond day on the two upstream items + (optional) recovery-feasibility scouting. my-city's controller stays down until the data plane is rebuilt.
 
 ## Pre-flight (read state, mutate nothing)
 - `gh issue view 2814 --repo gastownhall/gascity` — timeline since 2026-05-30T20:40Z: any julianknutsen comment / linked branch / fix PR?

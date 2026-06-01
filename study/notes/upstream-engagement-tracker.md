@@ -24,8 +24,8 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 | PRs awaiting maintainer | 0 |
 | Issues commented (downstream-symptom data) | 3 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN, **gascity#2846 corroboration — Day-42**) |
 | Bug issues filed (authored) | 2 (dolthub/dolt#11131 root cause — **RESOLVED in dolt v2.1.0, Day-41** + gastownhall/gascity#2814 consumer, OPEN/P0 — Day-39 dolt-2.0.8 wisp corruption) |
-| Engagement cadence | ~1 per 3.8 days (since Day-11) |
-| Local-only beads (linked to upstream items) | 4 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge; mc-jhsp8y in-flatten race exposed Day-31 — soak for race-frequency characterization) |
+| Engagement cadence | ~1 per 3.1 days (since Day-11) |
+| Local-only beads (linked to upstream items) | 4 active (mc-w9iua4 → #2136 MERGED; awaiting post-upgrade soak; mc-mxl4vc awaiting beads v1.0.6 (v1.0.5 gated); mc-4m2da1 awaiting city-upgrade soak post-#2316 merge; mc-jhsp8y in-flatten race exposed Day-31 — soak paused, superseded by #2846+#2855) |
 | Repos touched | 3 (gascity, beads, dolt) |
 
 ---

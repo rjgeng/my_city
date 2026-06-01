@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-06-01 (Day-42 — **PR #2638 MERGED** 2026-05-31T17:48:32Z — auto-merge fired after the Day-41 ping; stale-review block cleared by the time it landed. mc-itt3xc needs closing. All other state unchanged: #2814 §24 HOLD, #2136 §24a wait-only, mc-jhsp8y soak still PAUSED, my-city recovery waiting on vetted dolt 2.1.0 repair tool.)
+**Last updated:** 2026-06-01 (Day-42 — **PR #2638 MERGED** 2026-05-31T17:48:32Z (auto-merge fired after Day-41 ping; stale-review block cleared). **PR #2136 MERGED** ~2026-05-24T10:57Z (§24c adoption by julianknutsen; caught in Day-42 check — was missed since Day-32). **0 PRs awaiting maintainer.** mc-itt3xc + mc-w9iua4 both need closing (bd writes blocked; deferred to controller restore). #2814 §24 HOLD unchanged. mc-jhsp8y soak still PAUSED. my-city recovery waiting on vetted dolt 2.1.0 repair tool.)
 
 **Prior update:** 2026-05-31 (Day-41 — dolthub/dolt#11131 RESOLVED: root cause confirmed (schema-side encoding drift, *not* data corruption), fixed in dolt v2.1.0; all 2.x <2.1.0 being recalled; agent-produced, dolthub-unvetted repair tool on branch `zachmu/schema-repair-tool`. gascity#2814: julianknutsen posted an upstream-escalation status (matches dolt root cause); the PR offer is still unaddressed → §24 HOLD continues, and the premise shifted — the recall covers 2.0.7 too, so the correct guard is `ManagedMin → 2.1.0`, not a 2.0.8 block. Recovery scout (read-only): 2.1.0 alone does NOT recover my-city; `migrate-adaptive` (the `dolt_ignore` force-inline path) is required — full assessment in `study/notes/2026-05-31-day41-schemadrift-scout-findings.md`. mc-jhsp8y soak still PAUSED. PR #2136 still §24a wait-only. PR #2638: APPROVED + maintainer-adopted (julianknutsen `/adopt-pr`) + quad341 approved & auto-merge armed, but merge BLOCKED only on sjarmak's stale 5/27 CHANGES_REQUESTED — posted a factual ping to quad341 to dismiss it.)
 
@@ -20,8 +20,8 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 |---|---|
 | Total engagements | 9 (5 PRs + 2 issue comments + 2 filed bug issues) |
 | PRs opened | 5 |
-| PRs merged | 4 (#2037, #2316, #2088, **#2638 — Day-42**) |
-| PRs awaiting maintainer | 1 — #2136 (§24a wait-only) |
+| PRs merged | 5 (#2037, #2316, #2088, **#2136 — Day-25 era (2026-05-24)**, **#2638 — Day-41**) |
+| PRs awaiting maintainer | 0 |
 | Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
 | Bug issues filed (authored) | 2 (dolthub/dolt#11131 root cause — **RESOLVED in dolt v2.1.0, Day-41** + gastownhall/gascity#2814 consumer, OPEN/P0 — Day-39 dolt-2.0.8 wisp corruption) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
@@ -105,39 +105,17 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 ---
 
-### PR #2136 — `fix(maintenance): retry mol-dog-jsonl push on concurrent ref-update race`
+### ~~PR #2136~~ — `fix(maintenance): retry mol-dog-jsonl push on concurrent ref-update race` ✅ MERGED
 
 - **Repo:** `gastownhall/gascity`
 - **URL:** https://github.com/gastownhall/gascity/pull/2136
-- **State:** OPEN, CI green (74 SUCCESS + 22 SKIPPED — skipped are path-filtered, expected for bash-only change), mergeable=UNKNOWN (transient GitHub state, not a real conflict)
-- **Day filed:** Day-24 (2026-05-14, ~25 min after open)
-- **Size:** +38 -2 (single bash file: `examples/gastown/packs/maintenance/assets/scripts/jsonl-export.sh`)
-- **Activity:** Created 2026-05-14T22:13Z; Copilot review posted at 2026-05-14T22:19Z (benign summary, no actionable asks). **Content-idle ~16h as of Day-25 read — within 1.5× cadence threshold.** **Day-27 (2026-05-18T11:03:58Z): nudge posted by rjgeng** ("Friendly bump — any thoughts on this?") at ~93h content-idle, past 1.5× cadence threshold.
-- **Bead lineage:** mc-w9iua4 (P3 BUG, OPEN in HQ — updated 2026-05-15 with Day-25 soak result)
-- **Last action by us:** Day-27 nudge comment 2026-05-18T11:03:58Z (https://github.com/gastownhall/gascity/pull/2136#issuecomment-4477023113); per protocol, no further nudge after this one — let it ride.
-- **Day-25 update (canonical 24h mark):** baseline rate 3 mol-dog-jsonl exit-1 / 343 fires = **0.87%**. Cross-rig: HQ + co_store + co_shipping. PR fix should drop this to near-zero. Real validation needs upstream merge + city upgrade + post-install soak. At upper edge of the "1-3 failures" decision bucket — one more failure in a comparable window triggers "reconsider fix shape" branch.
-- **Day-26 check (2026-05-16 EOD):** still OPEN/MERGEABLE, `updatedAt` 2026-05-14T22:28Z (unchanged since open). Zero comments ever. Content-idle ~48h — at the threshold for a "ready when you are" nudge on Day-27 if still silent.
-- **Day-27 check (2026-05-18 AM):** still no maintainer activity; content-idle ~93h. **Nudge sent** — G3 satisfied per Day-27 plan.
-- **Day-32 check (2026-05-22 AM):** unchanged — `updatedAt` still 2026-05-18T11:03:58Z, day 4 of post-nudge silence. CI re-verified: 74 SUCCESS + 22 SKIPPED, MERGEABLE, zero reviewers requested, only copilot-bot has ever commented. **§24a wait-only continues; DO NOT nudge.** Compare to #2088 trajectory: that one took 4.5 days post-APPROVAL before §24b label-then-merge — but #2136 has no APPROVAL yet (csells-style peer signal absent), so the comparable window is wider.
-
-**What it does:** wraps the single-shot `git push origin main` in `push_archive_main()` with a 3-attempt retry loop, 1-5s jittered sleep, re-fetch + re-rebase between attempts. Preserves `consecutive_push_failures` / `MAX_PUSH_FAILURES` escalation semantic.
-
-**Quality concerns from the dig (worth pre-empting if maintainer asks):**
-
-| Concern | Detail | Suggested response if asked |
-|---|---|---|
-| **`awk srand()` is novel** | My commit introduced the FIRST `awk srand()` pattern in this repo. Bash `$RANDOM` is more conventional. | Offer to switch to `sleep $((1 + RANDOM % 5))` if reviewers prefer; both are functionally equivalent. |
-| **`for push_attempt in 1 2 3`** | Style is acceptable but the codebase doesn't have a standard idiom (no other 3-attempt retry patterns exist to mirror). | Stand by current shape; explain in comment. |
-| **No new unit test** | PR body explicitly offers to add one. The race is hard to test deterministically (it's a contention condition on a local bare repo). | Offer to add a "advanceArchiveRemoteMain twice in quick succession" test if reviewers prefer. |
-| **`set_pending_archive_push` interaction** | The retry loop succeeds-or-fails inside `push_archive_main()`. The function's return-1 path (after all 3 attempts fail) flows into the existing escalation logic. Not strictly tested with new code. | Unit test would also cover this. |
-
-**Next action:**
-- [ ] **Wait 24h** (until 2026-05-15 PM) for maintainer review.
-- [ ] If review requests changes: address inline. Most likely ask: switch `awk` to `$RANDOM`; OR add a unit test.
-- [ ] If silent at 48h: leave a brief "ready when you are" comment.
-- [ ] If merged + city upgrades: validate with another 24h post-install soak; close mc-w9iua4 if 0 failures.
-
-**Risk:** Low-medium. Functional correctness is solid. Style might draw a "switch to $RANDOM" nit. Worst case: maintainer asks for unit test, +30min to add.
+- **State:** **MERGED ~2026-05-24T10:57Z** (Day-25 era — missed in tracker; caught Day-42 check).
+- **Day filed:** Day-24 (2026-05-14); **Day merged:** ~Day-30 (2026-05-24).
+- **Bead lineage:** **mc-w9iua4** (P3 BUG) — needs post-upgrade soak to validate, then close. Blocked until my-city controller is restored.
+- **How it landed — §24c adoption:** julianknutsen `/adopt-pr`'d at 2026-05-24T10:21Z. Fixes pushed directly to branch: retry jitter de-synchronized (switched from `awk srand()` to per-process entropy + test-overridable delay bounds), retry-path regression tests added (fail-then-success + all-attempts-fail + terminal-message assertions), successful-retry operator log added. Final diff: 2 files, +284 -18 (`jsonl-export.sh` + new `maintenance_scripts_test.go`).
+- **Pattern note:** §24a silent wait (10 days) → single nudge Day-27 → §24c adoption ~6 days after nudge. The nudge likely unblocked the queue position.
+- **Next action:**
+  - [ ] Post-upgrade soak: after my-city controller restored + `gc upgrade` past PR #2136, run a 24h soak and verify mol-dog-jsonl exit-1 rate drops to ~0. Then close mc-w9iua4.
 
 ---
 

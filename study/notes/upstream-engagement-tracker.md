@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-06-01 (Day-42 — **PR #2638 MERGED** 2026-05-31T17:48:32Z (auto-merge fired after Day-41 ping; stale-review block cleared). **PR #2136 MERGED** ~2026-05-24T10:57Z (§24c adoption by julianknutsen; caught in Day-42 check — was missed since Day-32). **0 PRs awaiting maintainer.** mc-itt3xc + mc-w9iua4 both need closing (bd writes blocked; deferred to controller restore). #2814 §24 HOLD unchanged. mc-jhsp8y soak still PAUSED. my-city recovery waiting on vetted dolt 2.1.0 repair tool.)
+**Last updated:** 2026-06-01 (Day-42 — **PR #2638 MERGED** 2026-05-31T17:48:32Z (auto-merge fired after Day-41 ping; stale-review block cleared). **PR #2136 MERGED** ~2026-05-24T10:57Z (§24c adoption by julianknutsen; caught in Day-42 check — was missed since Day-32). **0 PRs awaiting maintainer.** #2638 moved to Closed section. mc-itt3xc + mc-w9iua4 both need closing (bd writes blocked; deferred to controller restore). #2814 §24 HOLD unchanged. mc-jhsp8y soak still PAUSED. my-city recovery waiting on vetted dolt 2.1.0 repair tool.)
 
 **Prior update:** 2026-05-31 (Day-41 — dolthub/dolt#11131 RESOLVED: root cause confirmed (schema-side encoding drift, *not* data corruption), fixed in dolt v2.1.0; all 2.x <2.1.0 being recalled; agent-produced, dolthub-unvetted repair tool on branch `zachmu/schema-repair-tool`. gascity#2814: julianknutsen posted an upstream-escalation status (matches dolt root cause); the PR offer is still unaddressed → §24 HOLD continues, and the premise shifted — the recall covers 2.0.7 too, so the correct guard is `ManagedMin → 2.1.0`, not a 2.0.8 block. Recovery scout (read-only): 2.1.0 alone does NOT recover my-city; `migrate-adaptive` (the `dolt_ignore` force-inline path) is required — full assessment in `study/notes/2026-05-31-day41-schemadrift-scout-findings.md`. mc-jhsp8y soak still PAUSED. PR #2136 still §24a wait-only. PR #2638: APPROVED + maintainer-adopted (julianknutsen `/adopt-pr`) + quad341 approved & auto-merge armed, but merge BLOCKED only on sjarmak's stale 5/27 CHANGES_REQUESTED — posted a factual ping to quad341 to dismiss it.)
 
@@ -92,19 +92,6 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 ---
 
-### ~~PR #2638~~ — `fix(gc): warn before supervisor recycle during city init` ✅ MERGED
-
-- **Repo:** `gastownhall/gascity`
-- **URL:** https://github.com/gastownhall/gascity/pull/2638
-- **State:** **MERGED 2026-05-31T17:48:32Z** (Day-41, ~8h after auto-merge armed). SQUASH merge by quad341.
-- **Day filed:** Day-37 era (2026-05-26T18:46Z); **Day merged:** Day-41 (2026-05-31).
-- **Bead lineage:** **mc-itt3xc** — needs closing.
-- **Pattern note:** §24c adopt + stale-review-block variant — armed auto-merge stalled by an un-dismissed prior CHANGES_REQUESTED (sjarmak 5/27); cleared by quad341 or a maintainer on Day-41 after the factual ping. The ping-then-merge gap was ~8h.
-- **Next action:**
-  - [ ] Close mc-itt3xc in HQ (bd writes blocked — defer until my-city controller restored).
-
----
-
 ### ~~PR #2136~~ — `fix(maintenance): retry mol-dog-jsonl push on concurrent ref-update race` ✅ MERGED
 
 - **Repo:** `gastownhall/gascity`
@@ -174,6 +161,20 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 ---
 
 ## Closed / merged items
+
+### PR #2638 — `fix(gc): warn before supervisor recycle during city init` ✅
+
+- **Repo:** `gastownhall/gascity`
+- **URL:** https://github.com/gastownhall/gascity/pull/2638
+- **State:** **MERGED 2026-05-31T17:48:32Z** (Day-41). SQUASH merge by quad341.
+- **Day filed:** Day-37 era (2026-05-26T18:46Z); **Day merged:** Day-41 (2026-05-31).
+- **Cycle time:** ~5 days (filed 5/26 → merged 5/31).
+- **Bead lineage:** **mc-itt3xc** — close pending my-city controller restore (bd writes blocked by dolt wisp corruption).
+- **Pattern note:** §24c adopt + stale-review-block variant — julianknutsen `/adopt-pr`'d + pushed fixes directly (warn-and-proceed, `term.IsTerminal` hardening); quad341 approved + armed auto-merge; armed auto-merge stalled by sjarmak's stale 5/27 CHANGES_REQUESTED; factual ping to quad341 Day-41; ~8h later julianknutsen merged with maintainer authority (override past stale review). First PR/code-credit (vs. prior reporter-credits).
+
+**Status:** done, shipped. Fifth contribution to land upstream. Reference proof point for §24c + stale-review-block variant.
+
+---
 
 ### PR #2088 — `docs(convoy): clarify --help text re: workflows vs convoys` ✅
 

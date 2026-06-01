@@ -132,3 +132,27 @@ Synced 2026-05-20 (Day-29 EOD) after PR #2316 merge moved its tracker entry to C
 - `upstream-engagement-tracker.md` line 181 — Issue #1487 retrospective disclaims §24 attribution (supportive-comment engagement is a future-section candidate).
 
 Historical: an earlier §24b citation lived at tracker line 112 (PR #2316 next-actions, "If silent at 48h: leave a brief 'any thoughts?' comment per §24 playbook"). When PR #2316 merged on Day-29 via `/adopt-pr`, the entry moved to Closed/merged and dropped the next-actions block, removing that citation. §24b still governed the day's behavior; the literal text is no longer in the tracker.
+
+---
+
+## §25 — Pre-draft discipline for any public post
+
+**Scope:** applies to every public upstream action — issue comment, PR body, corroboration comment, nudge. No exceptions based on size or apparent simplicity.
+
+**The sequence (must happen in this order):**
+
+1. **State what the post accomplishes.** Concrete, specific. Not "adds context" — "establishes that our quarantine marker predates by 9 days, extending the known-exposure window for the maintainer."
+2. **State what the post omits.** Explicit list of what is deliberately NOT in the draft. "No ask, no mention of our prior PRs, no competing fix offer." If you can't name what it omits, you haven't finished thinking about it.
+3. **Then draft.** Write to the spec from steps 1–2, not the other way around.
+4. **Show spec + draft together.** The introduction of any draft must be prescriptive ("it should do X, it must not do Y"), not descriptive ("it says X, it doesn't say Y"). Descriptive framing means the spec was reverse-engineered from the draft after writing — the wrong order.
+5. **Explicit send gate.** "Send it?" or "Post it?" One question. No action before a yes.
+
+**Failure mode to avoid:** surfacing an opportunity → writing a draft → explaining what the draft does while presenting it. This compresses three decisions (is it worth doing, does the draft hit the spec, should we send now) into one prompt, and the explanation arrives too late to constrain the draft.
+
+**Reference case (Day-42, 2026-06-01):** gascity#2846 corroboration comment. The previous session went: spotted #2846 → wrote draft → showed draft with explanation → "Want me to post it?" The explanation described the draft rather than defining it beforehand. The right sequence would have been: city state → tour findings → "corroboration comment is a candidate action; it would accomplish X; it would omit Y; worth doing?" → draft → "Send it?"
+
+**Anti-rules:**
+
+1. **Don't show a draft and then explain what it does.** The explanation is the spec; it must precede the draft.
+2. **Don't collapse the decision into "here's the draft, want me to post it?"** That merges "is this worth doing," "does the draft hit the spec," and "send now" into a single question.
+3. **Don't make the spec implicit.** Even if the accomplishes/omits are obvious, say them. The point of saying them is to constrain the draft and give the user something to evaluate against.

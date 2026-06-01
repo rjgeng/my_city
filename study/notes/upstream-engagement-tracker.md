@@ -2,7 +2,9 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-05-31 (Day-41 — **dolthub/dolt#11131 RESOLVED**: root cause confirmed (schema-side encoding drift, *not* data corruption), **fixed in dolt v2.1.0**; all 2.x <2.1.0 being **recalled**; agent-produced, dolthub-unvetted repair tool on branch `zachmu/schema-repair-tool`. **gascity#2814**: julianknutsen posted an upstream-escalation status (matches dolt root cause); the PR offer is still unaddressed → **§24 HOLD continues**, and the premise shifted — the recall covers 2.0.7 too, so the correct guard is `ManagedMin → 2.1.0`, not a 2.0.8 block. Recovery scout (read-only): **2.1.0 alone does NOT recover my-city**; `migrate-adaptive` (the `dolt_ignore` force-inline path) is required — full assessment in `study/notes/2026-05-31-day41-schemadrift-scout-findings.md`. **mc-jhsp8y soak still PAUSED.** PR #2136 still §24a wait-only. **PR #2638** (new to tracker): APPROVED + maintainer-adopted (julianknutsen `/adopt-pr`) + quad341 approved & **auto-merge armed**, but merge BLOCKED only on **sjarmak's stale 5/27 CHANGES_REQUESTED** — posted a factual ping to quad341 to dismiss it.)
+**Last updated:** 2026-06-01 (Day-42 — **PR #2638 MERGED** 2026-05-31T17:48:32Z — auto-merge fired after the Day-41 ping; stale-review block cleared by the time it landed. mc-itt3xc needs closing. All other state unchanged: #2814 §24 HOLD, #2136 §24a wait-only, mc-jhsp8y soak still PAUSED, my-city recovery waiting on vetted dolt 2.1.0 repair tool.)
+
+**Prior update:** 2026-05-31 (Day-41 — dolthub/dolt#11131 RESOLVED: root cause confirmed (schema-side encoding drift, *not* data corruption), fixed in dolt v2.1.0; all 2.x <2.1.0 being recalled; agent-produced, dolthub-unvetted repair tool on branch `zachmu/schema-repair-tool`. gascity#2814: julianknutsen posted an upstream-escalation status (matches dolt root cause); the PR offer is still unaddressed → §24 HOLD continues, and the premise shifted — the recall covers 2.0.7 too, so the correct guard is `ManagedMin → 2.1.0`, not a 2.0.8 block. Recovery scout (read-only): 2.1.0 alone does NOT recover my-city; `migrate-adaptive` (the `dolt_ignore` force-inline path) is required — full assessment in `study/notes/2026-05-31-day41-schemadrift-scout-findings.md`. mc-jhsp8y soak still PAUSED. PR #2136 still §24a wait-only. PR #2638: APPROVED + maintainer-adopted (julianknutsen `/adopt-pr`) + quad341 approved & auto-merge armed, but merge BLOCKED only on sjarmak's stale 5/27 CHANGES_REQUESTED — posted a factual ping to quad341 to dismiss it.)
 
 **Prior update:** 2026-05-30 (Day-39 PM — **gascity#2814 triaged `priority/p0`** by maintainer julianknutsen ~32 min after filing. Two upstream bug issues filed for the dolt 2.0.8 wisp-corruption regression: **dolthub/dolt#11131** (root cause; first filing on a non-gastownhall repo) + **gastownhall/gascity#2814** (consumer; pin dolt 2.0.4, now **P0**), cross-linked. **mc-jhsp8y soak PAUSED** — the same corruption bricked my-city's controller; full recovery record in `study/notes/adr/0003-dolt-2.0.8-wisp-corruption-recovery.md`. PR #2136 still §24a wait-only.)
 
@@ -18,8 +20,8 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 |---|---|
 | Total engagements | 9 (5 PRs + 2 issue comments + 2 filed bug issues) |
 | PRs opened | 5 |
-| PRs merged | 3 (#2037, #2316, #2088) |
-| PRs awaiting maintainer | 2 — #2136 (§24a wait-only) + **#2638 (APPROVED + auto-merge armed; blocked only on a stale review — Day-41)** |
+| PRs merged | 4 (#2037, #2316, #2088, **#2638 — Day-42**) |
+| PRs awaiting maintainer | 1 — #2136 (§24a wait-only) |
 | Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
 | Bug issues filed (authored) | 2 (dolthub/dolt#11131 root cause — **RESOLVED in dolt v2.1.0, Day-41** + gastownhall/gascity#2814 consumer, OPEN/P0 — Day-39 dolt-2.0.8 wisp corruption) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
@@ -90,26 +92,16 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 ---
 
-### PR #2638 — `fix(gc): warn before supervisor recycle during city init`
+### ~~PR #2638~~ — `fix(gc): warn before supervisor recycle during city init` ✅ MERGED
 
 - **Repo:** `gastownhall/gascity`
 - **URL:** https://github.com/gastownhall/gascity/pull/2638
-- **State:** OPEN, all CI green, `mergeable=MERGEABLE` but `mergeStateStatus=BLOCKED`. **APPROVED + maintainer-adopted; auto-merge armed (SQUASH, by quad341 2026-05-31T09:52:32Z).** Labels: `priority/p2`, `kind/feature`, **`status/merge-queued`**.
-- **Day filed:** Day-37 era (opened 2026-05-26T18:46Z by rjgeng); head `ab012dbc` (maintainer-rebased onto current main).
-- **Size:** +499 -0 (post-adoption, 5 files).
-- **Bead lineage:** **mc-itt3xc** (P2 bug — gc-init silent cross-city supervisor recycle; origin: the Day-34/36 soak incident where a healthy 33h supervisor was recycled by an unrelated `gc init`).
-- **Review history:**
-  - copilot-pull-request-reviewer COMMENTED (2026-05-26).
-  - **sjarmak CHANGES_REQUESTED 2026-05-27T11:54Z** (3 points: `gc start` unbypassable prompt; non-tty `/dev/null` treated as terminal; async API path gating).
-  - **rjgeng reply 2026-05-27T14:11Z — "all three addressed in `344a03de9`"** (warn-and-proceed for `gc start`; `term.IsTerminal(os.Stdin.Fd())`; async path validated ungated with comments).
-  - **julianknutsen `/adopt-pr` Maintainer Adoption Review 2026-05-31T08:25Z (§24c)** — decision **approve**; pushed maintainer fixups, rebased, preserved authorship; marked `status/merge-ready` → `status/merge-queued`. Remaining notes all **non-gating** (abort leaves city dir; doc cross-ref; comment alignment; full-chain `gc start` test; API-comment tightening).
-  - **quad341 APPROVED 2026-05-31T09:52Z** ("Merging now") + armed auto-merge.
-- **⚠️ What's wrong / why not merged yet:** **sjarmak's 5/27 CHANGES_REQUESTED is still the latest review from that reviewer and was never dismissed/re-approved**, so `reviewDecision` computes to CHANGES_REQUESTED → branch protection holds the armed auto-merge. The block is purely mechanical (a stale review on changes resolved Day-37), not substantive. **The merge window is NOT missed — it auto-merges the moment that review is cleared.**
-- **Last action by us:** **Day-41 (2026-05-31): posted a factual ping to quad341** (who armed auto-merge and may not realize sjarmak's stale review is the block) asking them to clear/dismiss it — https://github.com/gastownhall/gascity/pull/2638#issuecomment-4586910434
+- **State:** **MERGED 2026-05-31T17:48:32Z** (Day-41, ~8h after auto-merge armed). SQUASH merge by quad341.
+- **Day filed:** Day-37 era (2026-05-26T18:46Z); **Day merged:** Day-41 (2026-05-31).
+- **Bead lineage:** **mc-itt3xc** — needs closing.
+- **Pattern note:** §24c adopt + stale-review-block variant — armed auto-merge stalled by an un-dismissed prior CHANGES_REQUESTED (sjarmak 5/27); cleared by quad341 or a maintainer on Day-41 after the factual ping. The ping-then-merge gap was ~8h.
 - **Next action:**
-  - [ ] Watch for sjarmak re-review OR a maintainer dismissing the stale review → auto-merge fires.
-  - [ ] On merge: move to Closed/merged; close mc-itt3xc; note the **§24c adopt + stale-review-block** pattern (new variant — armed auto-merge stalled by an un-dismissed prior CHANGES_REQUESTED).
-  - [ ] Do NOT nudge again after the Day-41 ping (anti-plan: one-and-done).
+  - [ ] Close mc-itt3xc in HQ (bd writes blocked — defer until my-city controller restored).
 
 ---
 

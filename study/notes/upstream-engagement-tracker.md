@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-06-01 (Day-42 — **PR #2638 MERGED** 2026-05-31T17:48:32Z (auto-merge fired after Day-41 ping; stale-review block cleared). **PR #2136 MERGED** ~2026-05-24T10:57Z (§24c adoption by julianknutsen; caught in Day-42 check — was missed since Day-32). **0 PRs awaiting maintainer.** #2638 moved to Closed section. mc-itt3xc + mc-w9iua4 both need closing (bd writes blocked; deferred to controller restore). #2814 §24 HOLD unchanged. mc-jhsp8y soak still PAUSED. my-city recovery waiting on vetted dolt 2.1.0 repair tool.)
+**Last updated:** 2026-06-01 (Day-42 PM — **beads v1.0.5 GATED**: shipped 2026-05-29 pre-release but blocked by #4259 (migration 0043 silently corrupts multi-machine bd dolt sync); Homebrew reverted to v1.0.4; v1.0.6 in progress. #3880 fix IS in v1.0.5 changelog — wait for v1.0.6. **mc-jhsp8y superseded upstream**: gascity#2846 + PR #2855 (Wldc4rd, 2026-05-30/31) independently filed the identical gain+drift quarantine false-positive; Option B bounded-retry PR open, `status/review-failed` is bot-triage label (no human rejection). Our Day-31 quarantine marker predates by 9 days — corroboration comment on #2846 is a candidate action. **gascity#2814 §24 HOLD unchanged** — no new julianknutsen activity, no ManagedMin→2.1.0 PR filed yet. dolt repair tool still on unvetted branch only.)
 
 **Prior update:** 2026-05-31 (Day-41 — dolthub/dolt#11131 RESOLVED: root cause confirmed (schema-side encoding drift, *not* data corruption), fixed in dolt v2.1.0; all 2.x <2.1.0 being recalled; agent-produced, dolthub-unvetted repair tool on branch `zachmu/schema-repair-tool`. gascity#2814: julianknutsen posted an upstream-escalation status (matches dolt root cause); the PR offer is still unaddressed → §24 HOLD continues, and the premise shifted — the recall covers 2.0.7 too, so the correct guard is `ManagedMin → 2.1.0`, not a 2.0.8 block. Recovery scout (read-only): 2.1.0 alone does NOT recover my-city; `migrate-adaptive` (the `dolt_ignore` force-inline path) is required — full assessment in `study/notes/2026-05-31-day41-schemadrift-scout-findings.md`. mc-jhsp8y soak still PAUSED. PR #2136 still §24a wait-only. PR #2638: APPROVED + maintainer-adopted (julianknutsen `/adopt-pr`) + quad341 approved & auto-merge armed, but merge BLOCKED only on sjarmak's stale 5/27 CHANGES_REQUESTED — posted a factual ping to quad341 to dismiss it.)
 
@@ -117,13 +117,11 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 **What we did:** identified the regression in bd 1.0.4 (vs 1.0.3) — `maybeAutoImportJSONL` mis-detects empty DB and triggers a 4.6MB JSONL re-import that times out at 2 min. Workaround in city: symlink `/usr/local/bin/bd → bd 1.0.3`.
 
-**Upstream release status (verified Day-24):** beads latest release is **v1.0.4** (2026-05-09, the broken one). **v1.0.5 NOT yet shipped.** Workaround stands.
-
-**Day-27 PM verification (2026-05-18):** confirmed unchanged — #3880 OPEN (no activity since 5/13), beads still v1.0.4 latest. Skip re-check until ~Day-30.
+**Upstream release status (verified Day-42, 2026-06-01):** beads **v1.0.5 shipped 2026-05-29 as pre-release but is GATED** — migration `0043` silently and unrecoverably breaks multi-machine `bd dolt` sync after both clones upgrade (see #4259). Homebrew reverted to v1.0.4. **v1.0.6 in progress.** The #3880 fix IS in v1.0.5 (`fix(auto-import): restore empty-DB guard regressed by #3630, plus a test repair (#3691)`). Workaround (bd 1.0.3 symlink) stands.
 
 **Next action:**
-- [ ] **Monitor weekly.** Check `gh release list --repo gastownhall/beads` on each tour-day.
-- [ ] When v1.0.5 ships: plan city upgrade per mc-mxl4vc body's next-steps; validate the empty-DB guard works; close mc-mxl4vc.
+- [ ] **Monitor weekly.** Watch for v1.0.6 `gh release list --repo gastownhall/beads`. Do NOT upgrade to v1.0.5 (gated).
+- [ ] When v1.0.6 ships as stable: plan city upgrade per mc-mxl4vc body's next-steps; validate the empty-DB guard works; close mc-mxl4vc.
 
 **Risk:** Low. Workaround is stable. Deadline pressure: none.
 
@@ -135,19 +133,15 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 
 ### mc-jhsp8y — `mol-dog-compactor: in-flatten race window on hq exposed post-#2316 — first quarantine marker 2026-05-21`
 
-- **Local bead only** — Day-31 diagnose-day artifact. Filed 2026-05-21 during first post-upgrade soak observation.
+- **Local bead only** — Day-31 diagnose-day artifact. Filed 2026-05-21 during first post-upgrade soak observation. Soak **PAUSED** (dolt 2.0.8 wisp corruption, Day-39).
 - **Surface:** identical to mc-1zccc2 (`order.failed exit status 1`). **Different abort path.** Pre-#2316: preflight `head_commit` re-check (old run.sh:962-968). Post-#2316: post-flatten value-hash check (new run.sh:1538-1540, `verify_counts_saw_gain=1` branch).
 - **Causal separation:** old preflight race mitigated by #2316; newly-visible flatten-time race exposed safely through quarantine. Not a regression of #2316 — it's the next layer.
-- **Evidence artifact (DO NOT DELETE):** `.gc/runtime/packs/dolt/compact-quarantine/hq` — first observed quarantine marker of this kind. Primary diagnostic input; controller drops subprocess stderr so this file is the only structured trace of what happened.
+- **Evidence artifact (DO NOT DELETE):** `.gc/runtime/packs/dolt/compact-quarantine/hq` — first observed quarantine marker of this kind.
 - **Lineage:** mc-1zccc2 (original diagnosis) → mc-4m2da1 (preflight-fix design, partial scope merged in #2316) → **mc-jhsp8y (in-flatten race, exposed by #2316)**.
-- **Acceptance:** 3+ more daily data points (5/22, 5/23, 5/24) to confirm in-flatten race repeats with similar frequency, then decide fix shape, OR non-repeat in which case downgrade and close.
-- **Candidate fix shapes (NOT decisions today):**
-  - Outer retry-with-backoff wrapping the whole probe + flatten + verify cycle for `hq` specifically (the originally-proposed-in-mc-4m2da1-but-not-merged flatten-cycle retry).
-  - Pause `hq` writers during compact (likely intrusive).
-  - Dolt-native locking primitives if available.
-- **Next:** Day-32 = read 5/22 compactor fire (expected 08:30–08:50 PT given today's +16m drift). Three branches: same reason → race confirmed reproducible; different reason → wider scope; no fire / exit-0 → write-spike-dependent, downgrade.
-- **Becomes upstream when:** in-flatten race characterized + fix shape decided → file upstream PR.
-- **Plan reference:** `study/notes/2026-05-21-day31-first-soak-observation.md`
+- **⚡ UPSTREAM SUPERSEDED (Day-42, 2026-06-01):** gascity **#2846** (Wldc4rd, filed 2026-05-30) independently documented the identical gain+drift quarantine false-positive (real incident: hq at 16,822 commits / 3.9 GB). **PR #2855** (Wldc4rd, filed 2026-05-31) implements **Option B** — bounded retry (`GC_DOLT_COMPACT_GAIN_DRIFT_RETRY_MAX=3`) before escalating to permanent quarantine; `status/review-failed` is bot-triage label (no human rejection; CI skipping). Our candidate fix shape (retry-with-backoff wrapping flatten cycle) aligns with Option B. Our Day-31 marker predates Wldc4rd's incident (2026-05-30) by 9 days.
+- **Candidate action (pending decision):** comment on #2846 with our Day-31 corroborating data — independent operator, earlier first-occurrence (2026-05-21), same `post-flatten value hash changed with row-count increase` marker. Strengthens p1 triage breadth without racing the existing PR.
+- **Next local action:** resume soak after dolt repair + controller restore; if PR #2855 lands, verify the fix eliminates future quarantine fires in mc-jhsp8y's pattern and close the bead.
+- **Becomes upstream when:** ~~in-flatten race characterized + fix shape decided → file upstream PR~~ — superseded; watch #2855.
 
 ### mc-1zccc2 — `mol-dog-compactor exit 1 — two consecutive daily runs failed (5/14, 5/15)`
 

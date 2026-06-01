@@ -2,7 +2,7 @@
 
 A living tracker for all upstream issues, PRs, and contributions to `gastownhall/*` repos. Update inline as state changes; commit each meaningful update.
 
-**Last updated:** 2026-06-01 (Day-42 PM — **beads v1.0.5 GATED**: shipped 2026-05-29 pre-release but blocked by #4259 (migration 0043 silently corrupts multi-machine bd dolt sync); Homebrew reverted to v1.0.4; v1.0.6 in progress. #3880 fix IS in v1.0.5 changelog — wait for v1.0.6. **mc-jhsp8y superseded upstream**: gascity#2846 + PR #2855 (Wldc4rd, 2026-05-30/31) independently filed the identical gain+drift quarantine false-positive; Option B bounded-retry PR open, `status/review-failed` is bot-triage label (no human rejection). Our Day-31 quarantine marker predates by 9 days — corroboration comment on #2846 is a candidate action. **gascity#2814 §24 HOLD unchanged** — no new julianknutsen activity, no ManagedMin→2.1.0 PR filed yet. dolt repair tool still on unvetted branch only.)
+**Last updated:** 2026-06-01 (Day-42 EOD — **posted corroboration comment on gascity#2846** (https://github.com/gastownhall/gascity/issues/2846#issuecomment-4592858257): independent operator, Day-31 quarantine marker predating by 9 days, artifact still present. Issue comments counter → 3. **beads v1.0.5 GATED**: shipped 2026-05-29 pre-release but blocked by #4259 (migration 0043 silently corrupts multi-machine bd dolt sync); Homebrew reverted to v1.0.4; v1.0.6 in progress. #3880 fix IS in v1.0.5 changelog — wait for v1.0.6. **mc-jhsp8y superseded upstream**: gascity#2846 + PR #2855 (Wldc4rd, 2026-05-30/31) independently filed the identical gain+drift quarantine false-positive; Option B bounded-retry PR open, `status/review-failed` is bot-triage label (no human rejection). **gascity#2814 §24 HOLD unchanged** — no new julianknutsen activity, no ManagedMin→2.1.0 PR filed yet. dolt repair tool still on unvetted branch only.)
 
 **Prior update:** 2026-05-31 (Day-41 — dolthub/dolt#11131 RESOLVED: root cause confirmed (schema-side encoding drift, *not* data corruption), fixed in dolt v2.1.0; all 2.x <2.1.0 being recalled; agent-produced, dolthub-unvetted repair tool on branch `zachmu/schema-repair-tool`. gascity#2814: julianknutsen posted an upstream-escalation status (matches dolt root cause); the PR offer is still unaddressed → §24 HOLD continues, and the premise shifted — the recall covers 2.0.7 too, so the correct guard is `ManagedMin → 2.1.0`, not a 2.0.8 block. Recovery scout (read-only): 2.1.0 alone does NOT recover my-city; `migrate-adaptive` (the `dolt_ignore` force-inline path) is required — full assessment in `study/notes/2026-05-31-day41-schemadrift-scout-findings.md`. mc-jhsp8y soak still PAUSED. PR #2136 still §24a wait-only. PR #2638: APPROVED + maintainer-adopted (julianknutsen `/adopt-pr`) + quad341 approved & auto-merge armed, but merge BLOCKED only on sjarmak's stale 5/27 CHANGES_REQUESTED — posted a factual ping to quad341 to dismiss it.)
 
@@ -18,11 +18,11 @@ A living tracker for all upstream issues, PRs, and contributions to `gastownhall
 
 | Metric | Value |
 |---|---|
-| Total engagements | 9 (5 PRs + 2 issue comments + 2 filed bug issues) |
+| Total engagements | 10 (5 PRs + 3 issue comments + 2 filed bug issues) |
 | PRs opened | 5 |
 | PRs merged | 5 (#2037, #2316, #2088, **#2136 — Day-25 era (2026-05-24)**, **#2638 — Day-41**) |
 | PRs awaiting maintainer | 0 |
-| Issues commented (downstream-symptom data) | 2 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN) |
+| Issues commented (downstream-symptom data) | 3 (#1487 ✅ resolved by upstream PR #2127, beads-#3880 still OPEN, **gascity#2846 corroboration — Day-42**) |
 | Bug issues filed (authored) | 2 (dolthub/dolt#11131 root cause — **RESOLVED in dolt v2.1.0, Day-41** + gastownhall/gascity#2814 consumer, OPEN/P0 — Day-39 dolt-2.0.8 wisp corruption) |
 | Engagement cadence | ~1 per 3.8 days (since Day-11) |
 | Local-only beads (linked to upstream items) | 4 active (mc-w9iua4 → #2136 awaiting upstream; mc-mxl4vc awaiting beads v1.0.5; mc-4m2da1 awaiting city-upgrade soak post-#2316 merge; mc-jhsp8y in-flatten race exposed Day-31 — soak for race-frequency characterization) |
@@ -139,9 +139,25 @@ Items that are LOCAL beads only — not yet upstream, but could become upstream 
 - **Evidence artifact (DO NOT DELETE):** `.gc/runtime/packs/dolt/compact-quarantine/hq` — first observed quarantine marker of this kind.
 - **Lineage:** mc-1zccc2 (original diagnosis) → mc-4m2da1 (preflight-fix design, partial scope merged in #2316) → **mc-jhsp8y (in-flatten race, exposed by #2316)**.
 - **⚡ UPSTREAM SUPERSEDED (Day-42, 2026-06-01):** gascity **#2846** (Wldc4rd, filed 2026-05-30) independently documented the identical gain+drift quarantine false-positive (real incident: hq at 16,822 commits / 3.9 GB). **PR #2855** (Wldc4rd, filed 2026-05-31) implements **Option B** — bounded retry (`GC_DOLT_COMPACT_GAIN_DRIFT_RETRY_MAX=3`) before escalating to permanent quarantine; `status/review-failed` is bot-triage label (no human rejection; CI skipping). Our candidate fix shape (retry-with-backoff wrapping flatten cycle) aligns with Option B. Our Day-31 marker predates Wldc4rd's incident (2026-05-30) by 9 days.
-- **Candidate action (pending decision):** comment on #2846 with our Day-31 corroborating data — independent operator, earlier first-occurrence (2026-05-21), same `post-flatten value hash changed with row-count increase` marker. Strengthens p1 triage breadth without racing the existing PR.
+- **Comment posted (Day-42):** https://github.com/gastownhall/gascity/issues/2846#issuecomment-4592858257 — independent operator, earlier first-occurrence (2026-05-21), same `post-flatten value hash changed with row-count increase` marker, artifact still present. One-and-done.
 - **Next local action:** resume soak after dolt repair + controller restore; if PR #2855 lands, verify the fix eliminates future quarantine fires in mc-jhsp8y's pattern and close the bead.
 - **Becomes upstream when:** ~~in-flatten race characterized + fix shape decided → file upstream PR~~ — superseded; watch #2855.
+
+### Issue #2846 + PR #2855 (gastownhall/gascity) — `gain+drift compaction quarantine false-positive; Option B bounded retry`
+
+- **Repo:** `gastownhall/gascity`
+- **Issue URL:** https://github.com/gastownhall/gascity/issues/2846
+- **PR URL:** https://github.com/gastownhall/gascity/pull/2855
+- **State:** OPEN (issue P1; PR `status/review-failed` = bot-triage, no human reviewer yet)
+- **Filed by:** Wldc4rd (2026-05-30 issue, 2026-05-31 PR) — independent of our work
+- **Our engagement:** corroboration comment posted 2026-06-01 (Day-42): https://github.com/gastownhall/gascity/issues/2846#issuecomment-4592858257
+- **Local bead lineage:** [[mc-jhsp8y]] — our quarantine marker from 2026-05-21 predates Wldc4rd's incident by 9 days; soak PAUSED (dolt corruption).
+- **What #2855 does:** `GC_DOLT_COMPACT_GAIN_DRIFT_RETRY_MAX` (default 3) defers without GC and re-attempts before escalating to permanent quarantine when only gain+drift is seen (no HEAD-proven writer). Resets on clean verify. Unchanged: immediate quarantine for row decrease, same-count drift, table-list drift, probe failure.
+- **Next action:**
+  - [ ] Watch for human review on #2855. If reviewer asks for Option A instead (additive diff check) — that's a design choice, not a signal to engage. No nudge needed.
+  - [ ] When #2855 lands: verify mc-jhsp8y pattern resolves after city recovery + controller restore.
+
+---
 
 ### mc-1zccc2 — `mol-dog-compactor exit 1 — two consecutive daily runs failed (5/14, 5/15)`
 
